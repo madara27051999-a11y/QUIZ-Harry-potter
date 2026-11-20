@@ -174,6 +174,34 @@ input::placeholder{color:#ffffff55}
 .fx2-name{position:fixed;left:0;right:0;top:4vh;text-align:center;z-index:11;pointer-events:none;font-family:var(--title);font-weight:700;font-size:clamp(22px,2.4vw,44px);color:#e8f6ff;text-shadow:0 0 18px #6fbfff;opacity:0}
 .fx2-name.on{animation:nameFade 3.2s ease-in-out}
 @keyframes nameFade{15%,75%{opacity:1}100%{opacity:0}}
+.candles{position:fixed;inset:0 0 auto 0;height:46vh;pointer-events:none;z-index:0}
+.candle{position:absolute;width:10px;height:44px;border-radius:3px;background:linear-gradient(90deg,#d9cdb4,#fff6e0 45%,#bfb196);animation:bob 6s ease-in-out infinite;opacity:.7}
+.candle::before{content:"";position:absolute;left:50%;top:-16px;width:10px;height:18px;margin-left:-5px;border-radius:50% 50% 45% 45%/60% 60% 40% 40%;background:radial-gradient(circle at 50% 70%,#fff 0,#ffe28a 35%,#ff9a2a 70%,transparent 72%);filter:drop-shadow(0 0 8px #ffb347) drop-shadow(0 0 22px #ff8a1a);animation:flick .18s ease-in-out infinite alternate;transform-origin:50% 100%}
+.candle::after{content:"";position:absolute;left:50%;top:-40px;width:80px;height:80px;margin-left:-40px;border-radius:50%;background:radial-gradient(circle,#ffb34733,transparent 65%)}
+@keyframes bob{50%{transform:translateY(-14px)}}@keyframes flick{to{transform:scale(.9,1.08) skewX(3deg)}}
+.scr{position:relative;z-index:1}
+.scr>section{animation:secIn .7s cubic-bezier(.2,.8,.2,1)}
+@keyframes secIn{from{opacity:0;transform:translateY(18px) scale(.985);filter:blur(6px)}}
+.qtext{animation:qin 1s cubic-bezier(.2,.8,.2,1) .15s backwards}
+@keyframes qin{from{opacity:0;filter:blur(14px);transform:translateY(24px) scale(.96);letter-spacing:.06em}}
+.tiles{perspective:1400px}
+.tile{animation:tileIn .8s cubic-bezier(.2,.9,.3,1.15) backwards;transform-origin:50% 0}
+.tile:nth-child(1){animation-delay:.35s}.tile:nth-child(2){animation-delay:.45s}.tile:nth-child(3){animation-delay:.55s}.tile:nth-child(4){animation-delay:.65s}
+@keyframes tileIn{from{opacity:0;transform:rotateX(-75deg) translateY(30px)}}
+.reveal .tile{animation:none}.reveal .qtext{animation:none}.scr>section.reveal{animation:none}
+.reveal .tile.right{animation:glowPulse 1.6s ease-in-out infinite}
+@keyframes glowPulse{50%{box-shadow:0 0 0 5px var(--gold2),0 0 90px #f6d58dcc}}
+.reveal .tile.wrong .txt{animation:shakeX .5s}
+@keyframes shakeX{20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+.timer.low{animation:tpulse 1s ease-in-out infinite}
+@keyframes tpulse{50%{transform:scale(1.08)}}
+.timer.low .num{text-shadow:0 0 20px #ff6b6b}
+.res.bad{animation:shakeX .5s}
+.res.ok{animation:okPop .6s cubic-bezier(.3,1.6,.5,1)}
+@keyframes okPop{from{transform:scale(.7);opacity:0}}
+.opt{transition:transform .15s,filter .15s}.opt:active{filter:brightness(1.2)}
+.chip.new{animation:chipIn .8s cubic-bezier(.3,1.5,.5,1)}
+@keyframes chipIn{0%{transform:translateY(-40px) scale(.5);opacity:0;filter:blur(4px)}60%{opacity:1}100%{transform:none}}
 </style>
 </head>
 <body>
@@ -294,6 +322,7 @@ function onState(v){
 /* ================= ЭКРАН ================= */
 function chip(p,isNew){return `<span class="chip${isNew?' new':''}${p.on?'':' off'}"><i class="dot" style="background:var(--${p.house})"></i>${esc(p.name)}</span>`}
 function screenShell(){
+  if(!document.querySelector('.candles')){const cd=document.createElement('div');cd.className='candles';cd.innerHTML=Array.from({length:16},(_,i)=>`<i class="candle" style="left:${4+i*6+Math.random()*3}%;top:${4+Math.random()*26}vh;animation-delay:-${(Math.random()*6).toFixed(2)}s;transform:scale(${(.7+Math.random()*.5).toFixed(2)})"></i>`).join('');document.body.appendChild(cd)}
   app.innerHTML=`<div class="scr" id="scr"></div>
   <div class="status" id="status"><i></i><span>На связи</span></div>
   <div class="ctrl"><button class="btn ghost" id="snd">Звук: вкл</button><button class="btn ghost" id="fs">На весь экран</button><button class="btn" id="next">Начать игру →</button></div>`;
@@ -320,12 +349,12 @@ function screenRender(v){
         <div class="qmain">${!rev?`<div class="timer" id="timer"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="none" stroke="#ffffff1a" stroke-width="8"/><circle id="ring" cx="50" cy="50" r="44" fill="none" stroke="var(--gold)" stroke-width="8" stroke-linecap="round" stroke-dasharray="276.5"/></svg><div class="num" id="tnum"></div></div>`:`<div class="timer"><svg viewBox="0 0 100 100" style="transform:none"><circle cx="50" cy="50" r="44" fill="#e0b25a22" stroke="var(--gold)" stroke-width="4"/><path d="M30 52l13 13 27-30" fill="none" stroke="var(--gold2)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`}<h1 class="qtext">${esc(q.q)}</h1>${iconSVG(q.img,'qpic')}</div>
         <div class="tiles">${q.a.map((a,i)=>`<div class="tile ans${i} ${rev?(i===q.c?'right':'wrong'):''}">${shape(i)}<span class="txt">${esc(a)}</span><span class="cnt" id="c${i}">0</span><i class="bar" id="b${i}"></i></div>`).join('')}</div>
         ${rev?`<div class="fact">${esc(q.fact)}</div>`:'<div class="strip" id="strip"></div>'}</section>`;
-      if(rev){chime();setTimeout(()=>(v.cnt||[]).forEach((n,i)=>{const el=document.getElementById('b'+i);if(el)el.style.width=(n/(v.n||1)*100)+'%'}),60)}
+      if(rev){chime();setTimeout(()=>{const r=document.querySelector('.tile.right');if(r&&typeof FX2!=='undefined'){const b=r.getBoundingClientRect();FX2.burst(b.left+b.width/2,b.top+b.height/2,'#f6d58d',110)}},250);setTimeout(()=>(v.cnt||[]).forEach((n,i)=>{const el=document.getElementById('b'+i);if(el)el.style.width=(n/(v.n||1)*100)+'%'}),60)}
     }else if(v.ph==='board'){
       scr.innerHTML=`<section class="board"><div><h1>${v.pos+1>=v.tot?'Перед финалом':'Таблица лидеров'}</h1><ol class="lb" id="lb"></ol></div><div><h2>Кубок факультетов</h2><div class="cup" id="cup"></div></div></section>`;
       const lb=document.getElementById('lb');
       lb.innerHTML=pl.slice(0,8).map(p=>{const d=p.prev?p.prev-p.rank:0;return `<li class="row" data-s="${p.prev&&p.prev<=10?d:0}"><span class="r">${p.rank}</span><i class="dot" style="background:var(--${p.house})"></i><span class="n">${esc(p.name)}${d>0?`<span class="mv up">▲${d}</span>`:d<0?`<span class="mv dn">▼${-d}</span>`:''}</span><span class="g">${p.gain?'+'+p.gain:''}</span><span class="s">${p.score}</span></li>`}).join('')||'<li class="empty">Пока никого</li>';
-      const rows=[...lb.children];rows.forEach(r=>{const s=+r.dataset.s||0;if(s){r.style.transition='none';r.style.transform=`translateY(${s*(r.offsetHeight+9)}px)`}});
+      const rows=[...lb.children];lb.querySelectorAll('.s').forEach(el=>{const to=+el.textContent||0,g=+(el.previousElementSibling.textContent.replace('+',''))||0,from=to-g,t0=performance.now();if(!g)return;const st=()=>{const k=Math.min(1,(performance.now()-t0-500)/1200);if(k>0)el.textContent=Math.round(from+(to-from)*(1-Math.pow(1-k,3)));else el.textContent=from;if(k<1)requestAnimationFrame(st)};st()});rows.forEach(r=>{const s=+r.dataset.s||0;if(s){r.style.transition='none';r.style.transform=`translateY(${s*(r.offsetHeight+9)}px)`}});
       requestAnimationFrame(()=>requestAnimationFrame(()=>rows.forEach(r=>{r.style.transition='';r.style.transform=''})));
       const max=Math.max(1,...HOUSES.map(h=>v.h[h][0]));
       document.getElementById('cup').innerHTML=HOUSES.slice().sort((a,b)=>v.h[b][0]-v.h[a][0]).map(h=>`<div class="hrow"><div class="hn"><span>${HN[h]} <span class="muted" style="font-weight:500">· ${v.h[h][1]}</span></span><span>${v.h[h][0]}</span></div><div class="hbar"><i data-w="${v.h[h][0]/max*100}" style="background:var(--${h})"></i></div></div>`).join('');
@@ -398,6 +427,7 @@ function playRender(v){
     const q=QS[v.qi],ok=m!=null&&m===q.c;
     el.innerHTML=`${topBar(p)}<div class="center"><div class="res ${m==null?'none':ok?'ok':'bad'}"><h1>${m==null?'Нет ответа':ok?'Верно!':'Мимо'}</h1>${ok?`<div class="pts">+${p?p.gain:''}</div>`:`<p>Правильный ответ: <b>${esc(q.a[q.c])}</b></p>`}</div>${p?`<p class="score">Ты на ${p.rank} месте из ${v.n}</p>`:''}</div>`;
     try{navigator.vibrate&&navigator.vibrate(ok?[60,40,60]:200)}catch(e){}
+    if(ok)setTimeout(()=>{const r=el.querySelector('.res');if(r&&typeof FX2!=='undefined'){const b=r.getBoundingClientRect();FX2.burst(b.left+b.width/2,b.top+b.height/2,'#8be3a8',70)}},150);
   }else if(v.ph==='board'){
     el.innerHTML=`${topBar(p)}<div class="center"><p class="lead">Твоё место</p><div class="rank">${p?p.rank:'—'}</div><p class="score">${p?p.score:0} очков · игроков: ${v.n}</p><p class="lead">${p&&p.rank===1?'Ты лидируешь! Не сбавляй темп.':'Смотри таблицу на большом экране'}</p></div>`;
   }else if(v.ph==='final'){
