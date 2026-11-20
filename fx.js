@@ -47,7 +47,7 @@ function fxBeep(f,d,type,vol,delay){try{const a=fxAC(),o=a.createOscillator(),g=
 let fxLayer=null;
 function fxRoot(){if(!fxLayer){fxLayer=document.createElement('div');fxLayer.className='fx';document.body.appendChild(fxLayer)}return fxLayer}
 let lastPat='';
-function patronusFly(){
+function patronusFlyOld(){
   if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
   const keys=Object.keys(PATRONI).filter(k=>k!==lastPat);const k=keys[Math.random()*keys.length|0];lastPat=k;
   const el=document.createElement('div');el.className='patronus';
@@ -69,12 +69,13 @@ function whoosh(){try{if(!fxOn())return;const actx=fxAC();const n=actx.sampleRat
 function houseReveal(house,name){
   const H=HOUSE_FX[house];if(!H)return;
   const ov=document.createElement('div');ov.className='hx hx-'+house;ov.style.setProperty('--hc',H.color);ov.style.setProperty('--hl',H.light);
-  const art=house==='gryffindor'?lionSVG():house==='ravenclaw'?eagleSVG():house==='hufflepuff'?badgerSVG():snakeSVG();
+  const art='';
   ov.innerHTML=`<div class="hx-rays"></div><div class="hx-stage">${art}</div><div class="hx-text"><small>Кубок факультетов</small><b>${name}</b></div>`;
   document.body.appendChild(ov);
-  if(house==='slytherin')runSnake(ov);
+  const ANIM={gryffindor:['#f6c768','#ff9a3c'],slytherin:['#5fd394','#2fbf73'],ravenclaw:['#cfe0ff','#6fa8ff'],hufflepuff:['#f3d77c','#ffcf4a']}[house];
+  const it=(typeof FX2!=='undefined')?FX2.house(house,ANIM[0],ANIM[1]):null;
   roar(house);
-  const close=()=>{ov.classList.add('out');setTimeout(()=>ov.remove(),900)};
+  const close=()=>{if(it)FX2.stop(it);ov.classList.add('out');setTimeout(()=>ov.remove(),900)};
   ov.addEventListener('click',close);setTimeout(close,6500);
 }
 function runSnake(ov){
@@ -91,3 +92,5 @@ function roar(house){try{if(!fxOn())return;const actx=fxAC();const t=actx.curren
   else if(house==='ravenclaw'){const o=actx.createOscillator(),g=actx.createGain();o.type='triangle';o.frequency.setValueAtTime(2200,t);o.frequency.exponentialRampToValueAtTime(1300,t+.6);g.gain.setValueAtTime(.12,t);g.gain.exponentialRampToValueAtTime(.001,t+.7);o.connect(g).connect(actx.destination);o.start(t);o.stop(t+.8)}
   else{[0,.18,.36].forEach(dl=>fxBeep(220,.12,'square',.06,dl))}
 }catch(e){}}
+
+function patronusFly(){if(typeof FX2!=='undefined')FX2.patronus()}
