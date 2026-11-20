@@ -322,7 +322,7 @@ function onState(v){
 /* ================= ЭКРАН ================= */
 function chip(p,isNew){return `<span class="chip${isNew?' new':''}${p.on?'':' off'}"><i class="dot" style="background:var(--${p.house})"></i>${esc(p.name)}</span>`}
 function screenShell(){
-  if(!document.querySelector('.candles')){const cd=document.createElement('div');cd.className='candles';cd.innerHTML=Array.from({length:16},(_,i)=>`<i class="candle" style="left:${4+i*6+Math.random()*3}%;top:${4+Math.random()*26}vh;animation-delay:-${(Math.random()*6).toFixed(2)}s;transform:scale(${(.7+Math.random()*.5).toFixed(2)})"></i>`).join('');document.body.appendChild(cd)}
+  if(!document.querySelector('.candles')){const cd=document.createElement('div');cd.className='candles';cd.innerHTML=Array.from({length:11},(_,i)=>`<i class="candle" style="left:${3+i*9+Math.random()*4}%;top:${2+Math.random()*12}vh;animation-delay:-${(Math.random()*6).toFixed(2)}s;transform:scale(${(.7+Math.random()*.5).toFixed(2)})"></i>`).join('');document.body.appendChild(cd)}
   app.innerHTML=`<div class="scr" id="scr"></div>
   <div class="status" id="status"><i></i><span>На связи</span></div>
   <div class="ctrl"><button class="btn ghost" id="snd">Звук: вкл</button><button class="btn ghost" id="fs">На весь экран</button><button class="btn" id="next">Начать игру →</button></div>`;
