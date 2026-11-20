@@ -243,5 +243,5 @@ function shade(hex){const n=parseInt(hex.slice(1),16),r=n>>16,g=n>>8&255,b=n&255
 function stop(it){if(it)it.dead=true}
 function drawAt(key,x,y,s,ph,st,col,far){ensure();c=mc;const sp=key==='snake'?{k:'snake'}:SPECIES[key];c.setTransform(DPR,0,0,DPR,0,0);c.save();c.translate(x,y);c.scale(s,s);c.lineCap='round';c.lineJoin='round';c.shadowColor='#7cc4ff';c.shadowBlur=12;
   if(key==='snake')snakeDraw(ph*2,300,col);else sp.draw(ph,st,col,far);c.restore()}
-return {patronus,phoenixFire,house,stop,drawAt,burst,SPECIES};
+return {patronus,phoenixFire,house,stop,drawAt,burst,SPECIES,wandCast,showName};
 })();

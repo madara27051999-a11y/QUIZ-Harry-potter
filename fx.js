@@ -73,10 +73,11 @@ function houseReveal(house,name){
   ov.innerHTML=`<div class="hx-rays"></div><div class="hx-stage">${art}</div><div class="hx-text"><small>Кубок факультетов</small><b>${name}</b></div>`;
   document.body.appendChild(ov);
   const ANIM={gryffindor:['#f6c768','#ff9a3c'],slytherin:['#5fd394','#2fbf73'],ravenclaw:['#cfe0ff','#6fa8ff'],hufflepuff:['#f3d77c','#ffcf4a']}[house];
-  const it=(typeof FX2!=='undefined')?FX2.house(house,ANIM[0],ANIM[1]):null;
+  let closed=false;const it3=(window.FX3D&&FX3D.ready)?FX3D.house(house,()=>close()):null;if(it3)ov.classList.add('hx-3d');
+  const it=(!it3&&typeof FX2!=='undefined')?FX2.house(house,ANIM[0],ANIM[1]):null;
   roar(house);
-  const close=()=>{if(it)FX2.stop(it);ov.classList.add('out');setTimeout(()=>ov.remove(),900)};
-  ov.addEventListener('click',close);setTimeout(close,6500);
+  const close=()=>{if(closed)return;closed=true;if(it)FX2.stop(it);if(it3)FX3D.stop(it3);ov.classList.add('out');setTimeout(()=>ov.remove(),900)};
+  ov.addEventListener('click',close);setTimeout(close,it3?15000:6500);
 }
 function runSnake(ov){
   const p=ov.querySelector('#snk'),p2=ov.querySelector('#snk2'),h=ov.querySelector('#snh');const t0=performance.now();
@@ -93,4 +94,4 @@ function roar(house){try{if(!fxOn())return;const actx=fxAC();const t=actx.curren
   else{[0,.18,.36].forEach(dl=>fxBeep(220,.12,'square',.06,dl))}
 }catch(e){}}
 
-function patronusFly(){if(typeof FX2!=='undefined')FX2.patronus()}
+function patronusFly(){if(window.FX3D&&FX3D.ready&&FX3D.patronus())return;if(typeof FX2!=='undefined')FX2.patronus()}

@@ -202,6 +202,10 @@ input::placeholder{color:#ffffff55}
 .opt{transition:transform .15s,filter .15s}.opt:active{filter:brightness(1.2)}
 .chip.new{animation:chipIn .8s cubic-bezier(.3,1.5,.5,1)}
 @keyframes chipIn{0%{transform:translateY(-40px) scale(.5);opacity:0;filter:blur(4px)}60%{opacity:1}100%{transform:none}}
+.fx3d{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:10;display:none;filter:drop-shadow(0 0 6px var(--g1,rgba(150,210,255,.95))) drop-shadow(0 0 22px var(--g1,rgba(110,190,255,.8)))}
+.fx3d.finale{z-index:9}
+.hx-3d .hx-text{animation-delay:3.4s;z-index:12}.hx.hx-3d{z-index:8}
+.credits{position:fixed;left:50%;transform:translateX(-50%);bottom:6px;margin:0;font-size:11px;color:#ffffff55;white-space:nowrap;z-index:2}
 </style>
 </head>
 <body>
@@ -216,6 +220,7 @@ input::placeholder{color:#ffffff55}
 <canvas id="confetti"></canvas>
 <script src="qrcode.js"></script>
 <script src="icons.js"></script>
+<script type="importmap">{"imports":{"three":"./vendor/three.module.min.js","three/addons/":"./vendor/jsm/"}}</script>
 <script src="fx2.js"></script>
 <script src="fx.js"></script>
 <script src="mqtt.min.js"></script>
@@ -340,7 +345,7 @@ function screenRender(v){
       scr.innerHTML=`<section class="lobby"><div><h1>Квиз по&nbsp;<em>Гарри Поттеру</em></h1>
         <p class="sub">${TIME/1000} секунд на ответ · чем быстрее, тем больше очков · вопросы в случайном порядке</p><div class="count" id="count">Вопросов в игре: ${[15,25,40,50,60,70,80].filter(n=>n<=QS.length).map(n=>`<button data-n="${n}" aria-pressed="${n===G.count}">${n}</button>`).join("")}</div>
         <div class="join"><div class="qr" id="qr"></div><div><b>Наведи камеру телефона на QR-код</b><div class="url">${esc(LINK)}</div><div style="opacity:.75">Без регистрации, с любого интернета · код игры <b>${esc(CODE)}</b></div></div></div></div>
-        <div class="hall"><h2><b id="pc">0</b> <span id="pcw">волшебников</span> в зале</h2><div class="cloud" id="cloud"></div><div class="mini" id="mini"></div></div></section>`;
+        <div class="hall"><h2><b id="pc">0</b> <span id="pcw">волшебников</span> в зале</h2><div class="cloud" id="cloud"></div><div class="mini" id="mini"></div></div></section><p class="credits">3D-модели: Horse, Parrot — three.js (MIT); Fox — PixelMannen (CC0), риг и анимация @tomkranis (CC BY 4.0)</p>`;
       document.getElementById('count').onclick=e=>{const b=e.target.closest('button');if(!b)return;G.count=+b.dataset.n;document.querySelectorAll('#count button').forEach(x=>x.setAttribute('aria-pressed',x===b));publish()};
       try{const q=qrcode(0,'M');q.addData(LINK);q.make();document.getElementById('qr').innerHTML=q.createSvgTag({cellSize:8,margin:0,scalable:true})}catch(e){}
     }else if(v.ph==='question'||v.ph==='reveal'){
@@ -491,7 +496,7 @@ function landing(){
 }
 function connectWait(r,cb){let done=false;r.onConnection(c=>{if(c&&!done){done=true;cb(true)}});setTimeout(()=>{if(!done){done=true;cb(false)}},9000)}
 function startHost(){
-  isHost=true;
+  isHost=true;try{import('./fx3d.js').catch(e=>console.warn(e))}catch(e){}
   let code=null;try{code=localStorage.getItem('hpq-host-code')}catch(e){}
   if(!code){code=newCode();try{localStorage.setItem('hpq-host-code',code)}catch(e){}}
   CODE=code;
