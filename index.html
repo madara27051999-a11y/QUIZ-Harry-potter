@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Квиз по Гарри Поттеру</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+/*
+VOICE   торжественно и празднично, как пир в Большом зале
+IDEA    зачарованный потолок ночного неба над замком
+PICTURE силуэт замка под звёздами; плитки ответов в цветах факультетов
+COLOUR  ночь #120e1f, золото #e0b25a, пергамент #f3e6c8, четыре цвета факультетов
+TYPE    Cormorant Garamond для заголовков, Manrope для текста
+*/
+:root{--night:#120e1f;--gold:#e0b25a;--gold2:#f6d58d;--parch:#f3e6c8;--ink:#f4ecdc;--muted:#b9aecb;
+  --gryffindor:#b3262f;--slytherin:#1d7a4c;--ravenclaw:#2557a7;--hufflepuff:#d89a1d;
+  --a0:#b3262f;--a1:#1d7a4c;--a2:#2557a7;--a3:#d89a1d;
+  --title:"Cormorant Garamond",Georgia,serif;--body:Manrope,"Segoe UI",Roboto,system-ui,sans-serif;color-scheme:dark}
+:root[data-theme=light],:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0;min-height:100%}
+body{background:var(--night);color:var(--ink);font:16px/1.5 var(--body);overflow-x:clip;-webkit-tap-highlight-color:transparent}
+.sky{position:fixed;inset:0;z-index:-1;background:radial-gradient(120% 80% at 50% 110%,#3a1530 0%,transparent 60%),radial-gradient(90% 60% at 80% -10%,#2a2150 0%,transparent 60%),linear-gradient(#0c0a16,#151026 60%,#1d1430)}
+.sky canvas{position:absolute;inset:0;width:100%;height:100%}
+.castle{position:absolute;left:0;right:0;bottom:0;width:100%;height:30vh;opacity:.7}
+h1,h2{font-family:var(--title);font-weight:700;line-height:1.05;margin:0;text-wrap:balance}
+button{font:inherit;color:inherit;border:0;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px solid var(--gold2);outline-offset:3px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5em;min-height:48px;padding:.7em 1.4em;border-radius:999px;background:linear-gradient(#f2cd7c,#c8913a);color:#2b1806;font-weight:800;box-shadow:0 1px 0 #fff6 inset,0 6px 20px #e0b25a40;transition:transform .15s,filter .15s}
+.btn:hover{filter:brightness(1.07)}.btn:active{transform:scale(.97)}.btn[disabled]{filter:grayscale(.8) brightness(.7);cursor:not-allowed}
+.btn.ghost{background:#ffffff14;color:var(--ink);box-shadow:inset 0 0 0 1px #ffffff2a}
+.gold{color:var(--gold)}.muted{color:var(--muted)}
+.dot{display:inline-block;width:.8em;height:.8em;border-radius:50%;flex:none}
+.shape{width:1em;height:1em;flex:none;fill:currentColor}
+.ans0{background:var(--a0)}.ans1{background:var(--a1)}.ans2{background:var(--a2)}.ans3{background:var(--a3);color:#2a1700}
+@keyframes pop{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.06)}100%{transform:scale(1);opacity:1}}
+@keyframes rise{from{transform:translateY(16px);opacity:0}to{transform:none;opacity:1}}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* общие */
+.msg{min-height:100vh;display:grid;place-items:center;text-align:center;padding:24px}
+.msg h1{font-size:clamp(34px,6vw,64px);color:var(--parch);margin-bottom:.3em}
+.msg h1 em{font-style:normal;color:var(--gold)}
+.choose{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:24px}
+.choose .btn{min-height:64px;font-size:19px;padding:.8em 1.8em}
+/* ЭКРАН */
+.scr{font-size:clamp(15px,1.15vw,22px);min-height:100vh;display:flex;flex-direction:column;padding:clamp(18px,3vw,56px) clamp(18px,4vw,72px) clamp(84px,10vh,110px)}
+.lobby{flex:1;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:clamp(20px,4vw,72px);align-items:center}
+.lobby h1{font-size:clamp(44px,5.4vw,104px);color:var(--parch)}.lobby h1 em{font-style:normal;color:var(--gold)}
+.sub{margin:.6em 0 1.4em;font-size:1.1em;color:var(--muted)}
+.join{display:flex;gap:1.3em;align-items:center;background:linear-gradient(160deg,#f6ead0,#e8d5aa);color:#2a1b10;border-radius:22px;padding:1.1em;box-shadow:0 20px 60px #0008;max-width:44em}
+.qr{width:clamp(130px,13vw,250px);aspect-ratio:1;background:#fff;border-radius:12px;padding:8px;flex:none}
+.qr svg{width:100%;height:100%;display:block}
+.url{font-weight:800;font-size:.9em;margin:.4em 0;overflow-wrap:anywhere;opacity:.8}
+.hall{align-self:stretch;display:flex;flex-direction:column;background:#1a1429d9;border:1px solid #ffffff1f;border-radius:26px;padding:clamp(16px,2vw,32px)}
+.hall h2{font-size:clamp(26px,2.4vw,46px)}.hall h2 b{color:var(--gold)}
+.cloud{flex:1;display:flex;flex-wrap:wrap;align-content:flex-start;gap:.55em;margin:1em 0;min-height:28vh}
+.chip{display:inline-flex;align-items:center;gap:.5em;padding:.45em .9em .45em .55em;border-radius:999px;background:#ffffff12;font-weight:700}
+.chip.new{animation:pop .5s cubic-bezier(.3,1.6,.5,1)}.chip.off{opacity:.4}
+.empty{color:var(--muted);font-style:italic}
+.mini{display:flex;gap:1.1em;flex-wrap:wrap;color:var(--muted)}.mini span{display:inline-flex;align-items:center;gap:.4em}
+.qwrap{flex:1;display:flex;flex-direction:column;gap:clamp(14px,2.2vh,30px)}
+.qhead{display:flex;justify-content:space-between;gap:1em;font-weight:800;font-size:1.1em}
+.qnum{color:var(--gold)}.answered b{font-size:1.5em;color:var(--parch)}
+.qmain{display:grid;grid-template-columns:auto minmax(0,1fr);gap:clamp(18px,3vw,56px);align-items:center;flex:1}
+.timer{width:clamp(110px,11vw,200px);aspect-ratio:1;position:relative}
+.timer svg{width:100%;height:100%;transform:rotate(-90deg)}
+.timer .num{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--title);font-weight:700;font-size:clamp(44px,4.6vw,88px)}
+.timer.low .num{color:#ff6b6b}
+.qtext{font-size:clamp(32px,3.9vw,76px);color:var(--parch);animation:rise .5s}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(10px,1.2vw,22px)}
+.tile{position:relative;overflow:hidden;display:flex;align-items:center;gap:.8em;min-height:clamp(70px,11vh,130px);padding:.6em 1.1em;border-radius:18px;font-weight:800;font-size:clamp(20px,2vw,40px);line-height:1.15;box-shadow:0 10px 30px #0006,inset 0 1px 0 #fff3;transition:transform .4s,filter .4s;animation:rise .45s backwards}
+.tile:nth-child(2){animation-delay:.07s}.tile:nth-child(3){animation-delay:.14s}.tile:nth-child(4){animation-delay:.21s}
+.tile .shape{font-size:1.25em}.tile .txt{flex:1}
+.tile .bar{position:absolute;left:0;bottom:0;height:8px;background:#fff8;width:0;transition:width .8s cubic-bezier(.2,.8,.2,1)}
+.tile .cnt{font-family:var(--title);font-size:1.3em;display:none}
+.reveal .tile .cnt{display:block}
+.reveal .tile.wrong{filter:grayscale(.55) brightness(.42);transform:scale(.97)}
+.reveal .tile.right{box-shadow:0 0 0 4px var(--gold2),0 0 60px #f6d58d88}
+.fact{font-size:1.15em;color:var(--parch);background:#1d1730;box-shadow:0 10px 30px #0006;border-left:4px solid var(--gold);padding:.7em 1em;border-radius:0 12px 12px 0;animation:rise .5s .3s backwards}
+.strip{display:flex;flex-wrap:wrap;gap:.4em;min-height:2.2em}.strip .chip{font-size:.9em;animation:pop .4s}
+.board{flex:1;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:clamp(20px,4vw,64px);align-items:start}
+.board h1{font-size:clamp(40px,4.4vw,84px);color:var(--parch);margin-bottom:.4em}.board h2{font-size:clamp(28px,2.6vw,50px);margin-bottom:.6em}
+.lb{list-style:none;margin:0;padding:0;display:grid;gap:.55em}
+.row{display:grid;grid-template-columns:2.4em auto minmax(0,1fr) auto auto;align-items:center;gap:.8em;padding:.55em 1em;border-radius:14px;background:#ffffff10;font-size:1.25em;font-weight:700;transition:transform .9s cubic-bezier(.2,.8,.2,1)}
+.row:first-child{background:linear-gradient(90deg,#e0b25a40,#ffffff10)}
+.row .r{font-family:var(--title);font-size:1.4em;color:var(--gold);text-align:center}
+.row .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.row .g{color:#8be3a8;font-size:.85em;white-space:nowrap}
+.row .s{font-variant-numeric:tabular-nums;text-align:right;min-width:4.5em}
+.mv{font-size:.75em;margin-left:.4em}.mv.up{color:#8be3a8}.mv.dn{color:#ff8a8a}
+.cup{display:grid;gap:1em}.hrow{display:grid;gap:.35em}.hrow .hn{display:flex;justify-content:space-between;font-weight:800;font-size:1.1em}
+.hbar{height:22px;border-radius:999px;background:#ffffff14;overflow:hidden}.hbar i{display:block;height:100%;border-radius:inherit;width:0;transition:width 1.1s cubic-bezier(.2,.8,.2,1)}
+.final{flex:1;display:flex;flex-direction:column;align-items:center;text-align:center;gap:1.2em}
+.final h1{font-size:clamp(44px,5.2vw,104px);color:var(--parch)}
+.podium{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:end;gap:clamp(10px,2vw,30px);width:min(1100px,100%);margin-top:auto}
+.pod{display:flex;flex-direction:column;align-items:center;gap:.4em;animation:rise .8s backwards}
+.pod .nm{font-weight:800;font-size:clamp(20px,2vw,40px);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pod .sc{color:var(--muted);font-weight:700}
+.pod .blk{width:100%;border-radius:18px 18px 0 0;display:grid;place-items:start center;padding-top:.3em;font-family:var(--title);font-size:clamp(50px,6vw,120px);font-weight:700;color:#2a1700;background:linear-gradient(#f6d58d,#b8822f)}
+.pod.p2 .blk{background:linear-gradient(#e9e9f2,#9a9ab0);height:20vh}.pod.p1 .blk{height:30vh}.pod.p1{animation-delay:.6s}
+.pod.p3 .blk{background:linear-gradient(#e7b089,#9c5b32);height:13vh}.pod.p3{animation-delay:.2s}
+.ctrl{position:fixed;right:clamp(12px,2vw,32px);bottom:clamp(12px,2vh,28px);display:flex;gap:.6em;z-index:5;flex-wrap:wrap;justify-content:flex-end}
+.ctrl .btn{min-height:54px}
+.status{position:fixed;left:clamp(12px,2vw,32px);bottom:clamp(14px,2vh,30px);color:var(--muted);font-size:.9em;display:flex;align-items:center;gap:.5em;z-index:5}
+.status i{width:.6em;height:.6em;border-radius:50%;background:#58d68d}.status.off i{background:#ff6b6b}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:6;width:100%;height:100%}
+@media(max-width:900px){.lobby,.board{grid-template-columns:1fr}.qmain{grid-template-columns:1fr;justify-items:center;text-align:center}.join{flex-direction:column;text-align:center}}
+@media(max-width:600px){.tiles{grid-template-columns:1fr}.row{grid-template-columns:2em auto minmax(0,1fr) auto}.row .g{display:none}.ctrl .btn.ghost{display:none}}
+/* ТЕЛЕФОН */
+.ply{min-height:100dvh;display:flex;flex-direction:column;padding:16px;max-width:560px;margin:0 auto;user-select:none}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:700;color:var(--muted);font-size:14px;min-height:28px}
+.me{display:inline-flex;align-items:center;gap:6px;color:var(--ink);max-width:60%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.center{flex:1;display:flex;flex-direction:column;justify-content:center;gap:18px;text-align:center;animation:rise .4s}
+.ply h1{font-size:clamp(32px,10vw,46px);color:var(--parch)}.ply h1 em{font-style:normal;color:var(--gold)}
+.lead{color:var(--muted);font-size:17px;margin:0}
+form{display:flex;flex-direction:column;gap:16px;text-align:left}
+label{font-weight:700;font-size:14px;color:var(--muted)}
+input{width:100%;font:700 18px var(--body);padding:14px 16px;border-radius:14px;border:1px solid #ffffff2a;background:#ffffff10;color:var(--ink)}
+input::placeholder{color:#ffffff55}
+.houses{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+.house{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:14px;border-radius:16px;background:#ffffff0d;box-shadow:inset 0 0 0 1px #ffffff20;text-align:left;font-weight:800;min-height:84px}
+.house svg{width:28px;height:28px}.house small{font-weight:500;color:var(--muted);font-size:12px}
+.house[aria-pressed=true]{background:color-mix(in srgb,var(--c) 45%,transparent);box-shadow:inset 0 0 0 2px var(--c)}
+.err{color:#ff8a8a;min-height:1.2em;margin:0;font-size:14px}
+.big{width:100%;min-height:56px;font-size:18px}
+.timebar{height:8px;border-radius:999px;background:#ffffff18;overflow:hidden;margin:10px 0 14px}
+.timebar i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));width:100%}
+.qt{font-family:var(--title);font-weight:700;font-size:clamp(22px,6.4vw,30px);line-height:1.15;color:var(--parch);margin:0 0 14px}
+.grid{flex:1;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr;gap:10px;min-height:52dvh}
+.opt{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:12px;border-radius:18px;font-weight:800;font-size:clamp(18px,5.4vw,24px);line-height:1.2;box-shadow:0 8px 20px #0006,inset 0 1px 0 #fff3}
+.opt .shape{font-size:34px}.opt:active{transform:scale(.95)}
+.opt.picked{box-shadow:0 0 0 4px var(--gold2),0 8px 30px #0008}
+.res{border-radius:24px;padding:28px 18px;box-shadow:0 20px 50px #0008}
+.res.ok{background:linear-gradient(160deg,#2ea36a,#145c3b)}.res.bad{background:linear-gradient(160deg,#c23a43,#6e1424)}.res.none{background:linear-gradient(160deg,#4a4160,#241d36)}
+.res h1{color:#fff}.res .pts{font-family:var(--title);font-weight:700;font-size:clamp(44px,14vw,70px);color:#fff;animation:pop .6s}
+.res p{margin:.4em 0 0;color:#ffffffd0}
+.rank{font-family:var(--title);font-weight:700;font-size:clamp(80px,28vw,140px);line-height:1;color:var(--gold);animation:pop .7s}
+.score{font-size:20px;font-weight:800;margin:0}
+.wand{width:88px;height:88px;margin:0 auto}.wand .spark{transform-origin:70px 18px;animation:spin 2.4s linear infinite}
+.link{background:none;color:var(--muted);text-decoration:underline;font-size:14px;padding:10px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="sky"><canvas id="stars"></canvas>
+<svg class="castle" viewBox="0 0 1600 320" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+<defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a1f3f"/><stop offset="1" stop-color="#0b0814"/></linearGradient></defs>
+<path fill="#0d0a17" d="M0 320V250Q200 200 420 236T860 222T1260 240T1600 214V320Z"/>
+<g fill="url(#cg)"><rect x="560" y="150" width="480" height="140"/><rect x="600" y="70" width="46" height="160"/><path d="M592 72 623 4 654 72Z"/><rect x="700" y="110" width="40" height="120"/><path d="M693 112 720 52 747 112Z"/><rect x="780" y="40" width="58" height="200"/><path d="M770 42 809 -30 848 42Z"/><rect x="880" y="96" width="44" height="140"/><path d="M872 98 902 30 932 98Z"/><rect x="964" y="124" width="40" height="110"/><path d="M957 126 984 70 1011 126Z"/><rect x="470" y="190" width="110" height="100"/><rect x="490" y="150" width="36" height="60"/><path d="M484 152 508 104 532 152Z"/><rect x="1030" y="180" width="140" height="110"/><rect x="1110" y="132" width="38" height="70"/><path d="M1104 134 1129 84 1154 134Z"/></g>
+<g fill="#f3c46b" opacity=".85"><rect x="618" y="110" width="8" height="14" rx="4"/><rect x="716" y="150" width="8" height="12" rx="4"/><rect x="804" y="80" width="9" height="16" rx="4"/><rect x="804" y="130" width="9" height="16" rx="4"/><rect x="898" y="140" width="8" height="12" rx="4"/><rect x="980" y="160" width="7" height="12" rx="3"/><rect x="640" y="200" width="10" height="16" rx="5"/><rect x="700" y="210" width="10" height="16" rx="5"/><rect x="860" y="200" width="10" height="16" rx="5"/><rect x="940" y="214" width="10" height="16" rx="5"/><rect x="1060" y="220" width="9" height="14" rx="4"/><rect x="510" y="226" width="9" height="14" rx="4"/></g>
+</svg></div>
+<div id="app"><div class="msg"><div><h1>Квиз по <em>Гарри Поттеру</em></h1><p class="muted">Открываем Большой зал…</p></div></div></div>
+<canvas id="confetti"></canvas>
+<script src="qrcode.js"></script>
+<script src="mqtt.min.js"></script>
+<script>
+{
+const QS=[["С какой платформы отправляется Хогвартс-экспресс?",["7 ½","9 ¾","10 ⅓","3 ¼"],1,"Чтобы на неё попасть, нужно пройти сквозь барьер между 9-й и 10-й платформами вокзала Кингс-Кросс."],["Какое заклинание обезоруживает противника?",["Ступефай","Алохомора","Экспеллиармус","Люмос"],2,"Фирменное заклинание Гарри. Именно им он побеждает Волан-де-Морта в финальной дуэли."],["На какой позиции Гарри играет в квиддич?",["Вратарь","Ловец","Загонщик","Охотник"],1,"Он стал самым юным игроком факультетской команды за последнее столетие."],["Как зовут домового эльфа, которого Гарри освободил с помощью носка?",["Кикимер","Винки","Добби","Хоки"],2,"Гарри спрятал носок в дневник Тома Реддла, и Люциус Малфой сам швырнул его Добби."],["Как называется банк волшебников?",["Гринготтс","Олливандер","Флориш и Блоттс","Дырявый котёл"],0,"Банком управляют гоблины, а самые глубокие сейфы охраняет дракон."],["Как зовут кота Гермионы?",["Короста","Живоглот","Тревор","Клювокрыл"],1,"Короста — крыса Рона, Тревор — жаба Невилла, Клювокрыл — гиппогриф Хагрида."],["От какого факультета Гарри упрашивал Шляпу: «Только не туда»?",["Когтевран","Пуффендуй","Слизерин","Дурмстранг"],2,"Шляпа считала, что в Слизерине Гарри ждёт величие, но уступила его просьбе."],["Какой облик принимает Патронус Гермионы?",["Олень","Выдра","Кошка","Заяц"],1,"Олень — у Гарри, кошка — у МакГонагалл, заяц — у Полумны."],["Чего больше всего боится Рон?",["Змей","Дементоров","Пауков","Темноты"],2,"В детстве Фред превратил его плюшевого мишку в огромного паука."],["Что Гарри видит в зеркале Еиналеж?",["Себя капитаном команды","Свою семью","Волан-де-Морта","Кубок школы"],1,"Зеркало показывает самое сокровенное желание. Дамблдор уверял, что видит в нём пару шерстяных носков."],["Что из этого НЕ относится к Дарам Смерти?",["Бузинная палочка","Воскрешающий камень","Маховик времени","Мантия-невидимка"],2,"Маховик времени Гермиона получила на третьем курсе, чтобы успевать на все уроки сразу."],["Сколько крестражей Волан-де-Морт создал намеренно?",["5","6","7","8"],1,"Седьмым, случайным крестражем стал сам Гарри."],["Кто убил Альбуса Дамблдора?",["Беллатриса Лестрейндж","Драко Малфой","Северус Снегг","Фенрир Сивый"],2,"Всё было условлено заранее: Дамблдор и так умирал от проклятия, наложенного на кольцо."],["Как звучит полное имя Волан-де-Морта?",["Том Марволо Реддл","Том Морфин Реддл","Тобиас Марволо Реддл","Том Салазар Реддл"],0,"Из букв этого имени складывается фраза «Я лорд Волан-де-Морт»."],["В каком сейфе Гринготтса хранился Философский камень?",["687","713","394","711"],1,"Хагрид забрал свёрток из сейфа 713 в тот же день, когда повёл Гарри за покупками. Сейф 687 — это сейф самого Гарри."]].map(([q,a,c,fact])=>({q,a,c,fact}));
+let LINK='';
+const TIME=20000;
+const HN={gryffindor:'Гриффиндор',slytherin:'Слизерин',ravenclaw:'Когтевран',hufflepuff:'Пуффендуй'};
+const HD={gryffindor:'Храбрость',slytherin:'Амбиции',ravenclaw:'Мудрость',hufflepuff:'Верность'};
+const HOUSES=Object.keys(HN);
+const CREST='M12 2 20 5v6c0 5-3.4 9.3-8 11-4.6-1.7-8-6-8-11V5z';
+const SH=['M13 2 4 14h6l-1 8 9-12h-6z','M12 2 22 12 12 22 2 12z','M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7L12 17.3 5.8 21l1.6-7L2 9.2l7.1-.6z','M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18z'];
+const shape=i=>`<svg class="shape" viewBox="0 0 24 24"><path d="${SH[i]}"/></svg>`;
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const plural=(n,a,b,c)=>{const m=n%10,h=n%100;return m===1&&h!==11?a:m>=2&&m<=4&&(h<10||h>=20)?b:c};
+const light=h=>`color-mix(in srgb,var(--${h}) 55%,#fff)`;
+const app=document.getElementById('app');
+let room=null,isHost=false,mode='';
+let PID=store.get('hpq-pid');if(!PID){PID=Math.random().toString(36).slice(2,12);store.set('hpq-pid',PID);}
+
+/* ---------- звёзды и конфетти ---------- */
+const still=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const sc=document.getElementById('stars'),sx=sc.getContext('2d');let stars=[];
+function sizeStars(){sc.width=innerWidth*devicePixelRatio;sc.height=innerHeight*devicePixelRatio;stars=Array.from({length:160},()=>({x:Math.random(),y:Math.random()*.75,r:Math.random()*1.4+.3,p:Math.random()*6}))}
+function drawStars(t){sx.clearRect(0,0,sc.width,sc.height);for(const s of stars){sx.globalAlpha=.35+.65*Math.abs(Math.sin(t/1400+s.p));sx.fillStyle='#fff6dc';sx.beginPath();sx.arc(s.x*sc.width,s.y*sc.height,s.r*devicePixelRatio,0,7);sx.fill()}if(!still)requestAnimationFrame(drawStars)}
+addEventListener('resize',sizeStars);sizeStars();requestAnimationFrame(drawStars);
+const cc=document.getElementById('confetti'),cx=cc.getContext('2d');let bits=[];
+function confetti(){cc.width=innerWidth;cc.height=innerHeight;const cols=['#e0b25a','#f6d58d','#b3262f','#1d7a4c','#2557a7','#d89a1d','#fff'];bits=Array.from({length:200},()=>({x:Math.random()*cc.width,y:-20-Math.random()*cc.height*.6,vx:(Math.random()-.5)*3,vy:2+Math.random()*4,r:Math.random()*6.3,s:4+Math.random()*6,c:cols[Math.random()*7|0]}));if(!still)requestAnimationFrame(fall)}
+function fall(){cx.clearRect(0,0,cc.width,cc.height);let alive=0;for(const b of bits){b.x+=b.vx;b.y+=b.vy;b.r+=.1;if(b.y<cc.height+20)alive++;cx.save();cx.translate(b.x,b.y);cx.rotate(b.r);cx.fillStyle=b.c;cx.fillRect(-b.s/2,-b.s/4,b.s,b.s/2);cx.restore()}if(alive)requestAnimationFrame(fall);else cx.clearRect(0,0,cc.width,cc.height)}
+
+/* ---------- звук (только экран) ---------- */
+let sound=true,actx=null;
+function beep(f,d=.12,type='sine',vol=.15,delay=0){if(!sound)return;try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();const o=actx.createOscillator(),g=actx.createGain(),t=actx.currentTime+delay;o.type=type;o.frequency.value=f;g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g).connect(actx.destination);o.start(t);o.stop(t+d+.02)}catch(e){}}
+const chime=()=>[660,880,1320].forEach((f,i)=>beep(f,.5,'triangle',.12,i*.12));
+const fanfare=()=>[523,659,784,1046,784,1046].forEach((f,i)=>beep(f,.35,'triangle',.14,i*.16));
+const pling=()=>beep(1200+Math.random()*300,.08,'sine',.06);
+
+/* ================= ВЕДУЩИЙ: игровой движок ================= */
+const G={e:Date.now(),ph:'lobby',qi:-1,qStart:0,players:{},timer:null};
+function cleanName(s){return String(s||"").replace(/[\x00-\x1f\u200b-\u200f\u2028-\u202e]/g,"").replace(/\s+/g," ").trim().slice(0,18)}
+function ranked(){return Object.values(G.players).sort((a,b)=>b.score-a.score||a.joined-b.joined)}
+function syncPeers(){
+  if(!room)return;const here=new Set();
+  for(const p of room.peers()){
+    if(p.kind!=='viewer'||p.sameTab)continue;const pr=p.presence||{};
+    const pid=typeof pr.pid==='string'?pr.pid.slice(0,20):'';const name=cleanName(pr.name);
+    if(!pid||!name)continue;here.add(pid);
+    let pl=G.players[pid];
+    if(!pl)pl=G.players[pid]={pid,name,house:'gryffindor',score:0,answers:{},joined:Date.now(),prev:null};
+    pl.name=name;if(HOUSES.includes(pr.house))pl.house=pr.house;
+    const a=pr.a;
+    if(G.ph==='question'&&a&&a.e===G.e&&a.q===G.qi&&!pl.answers[G.qi]&&[0,1,2,3].includes(a.c)){
+      const el=Date.now()-G.qStart;const ms=Math.max(0,Math.min(Number(a.ms)||el,el,TIME));
+      pl.answers[G.qi]={c:a.c,pts:a.c===QS[G.qi].c?Math.round(1000*(1-ms/TIME/2)):0};
+    }
+  }
+  for(const pl of Object.values(G.players))pl.on=here.has(pl.pid);
+  if(G.ph==='question'){const on=Object.values(G.players).filter(p=>p.on);
+    if(on.length&&on.every(p=>p.answers[G.qi])){clearTimeout(G.timer);G.timer=setTimeout(reveal,700)}}
+  publish();
+}
+function startQ(i){clearTimeout(G.timer);ranked().forEach((p,k)=>p.prev=k+1);G.ph='question';G.qi=i;G.qStart=Date.now();G.timer=setTimeout(reveal,TIME+300);publish(true)}
+function reveal(){if(G.ph!=='question')return;clearTimeout(G.timer);for(const p of Object.values(G.players)){const a=p.answers[G.qi];if(a)p.score+=a.pts}G.ph='reveal';publish(true)}
+function next(){
+  if(G.ph==='lobby')startQ(0);
+  else if(G.ph==='question')reveal();
+  else if(G.ph==='reveal'){G.ph='board';publish(true)}
+  else if(G.ph==='board'){if(G.qi+1<QS.length)startQ(G.qi+1);else{G.ph='final';publish(true)}}
+  else if(G.ph==='final'){for(const p of Object.values(G.players)){p.score=0;p.answers={};p.prev=null}G.e=Date.now();G.ph='lobby';G.qi=-1;publish(true)}
+}
+function viewState(){
+  const list=ranked();
+  const pl=list.map((p,k)=>{const a=p.answers[G.qi];return [p.pid,p.name,p.house,p.score,p.prev||0,a&&G.ph!=='question'?a.pts:0,a?1:0,p.on?1:0]});
+  const h={};for(const x of HOUSES)h[x]=[0,0];for(const p of list){h[p.house][0]+=p.score;h[p.house][1]++}
+  let cnt=null;if(G.ph!=='question'&&G.qi>=0){cnt=[0,0,0,0];for(const p of list){const a=p.answers[G.qi];if(a)cnt[a.c]++}}
+  const v={e:G.e,ph:G.ph,qi:G.qi,rem:G.ph==='question'?Math.max(0,G.qStart+TIME-Date.now()):0,n:list.length,cnt,h,pl};
+  while(JSON.stringify(v).length>3800&&v.pl.length>5)v.pl.pop();
+  return v;
+}
+let pubT=null,lastPub=0;
+function publish(now){
+  const go=()=>{pubT=null;lastPub=Date.now();try{localStorage.setItem('hpq-host-game',JSON.stringify({code:CODE,at:Date.now(),g:{e:G.e,ph:G.ph,qi:G.qi,qStart:G.qStart,players:G.players}}))}catch(e){}const v=viewState();onState(v);if(room)room.emit('state',v).catch(()=>{})};
+  if(now){clearTimeout(pubT);go();return}
+  if(!pubT)pubT=setTimeout(go,Math.max(0,250-(Date.now()-lastPub)));
+}
+function hostStart(){
+  room.onPeers(syncPeers);
+  setInterval(()=>publish(),2000);
+  publish(true);
+}
+
+/* ================= разбор состояния ================= */
+const P=v=>v.pl.map((x,k)=>({pid:x[0],name:x[1],house:x[2],score:x[3],prev:x[4],gain:x[5],ans:x[6],on:x[7],rank:k+1}));
+let V=null,key='',deadline=0,seen=new Set(),lastTick=-1;
+function onState(v){
+  if(!v||typeof v!=='object'||!Array.isArray(v.pl))return;
+  const nd=v.ph==='question'?Date.now()+v.rem:0;if(Math.abs(nd-deadline)>400)deadline=nd;
+  V=v;if(mode==='screen')screenRender(v);else if(mode==='play')playRender(v);
+}
+
+/* ================= ЭКРАН ================= */
+function chip(p,isNew){return `<span class="chip${isNew?' new':''}${p.on?'':' off'}"><i class="dot" style="background:var(--${p.house})"></i>${esc(p.name)}</span>`}
+function screenShell(){
+  app.innerHTML=`<div class="scr" id="scr"></div>
+  <div class="status" id="status"><i></i><span>На связи</span></div>
+  <div class="ctrl"><button class="btn ghost" id="snd">Звук: вкл</button><button class="btn ghost" id="fs">На весь экран</button><button class="btn" id="next">Начать игру →</button></div>`;
+  document.getElementById('next').onclick=()=>{beep(440,.05,'sine',.01);next()};
+  document.getElementById('fs').onclick=()=>{try{document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()}catch(e){}};
+  document.getElementById('snd').onclick=e=>{sound=!sound;e.target.textContent='Звук: '+(sound?'вкл':'выкл')};
+  addEventListener('keydown',e=>{if(mode!=='screen'||/BUTTON|INPUT/.test(e.target.tagName))return;if([' ','Enter','ArrowRight'].includes(e.key)){e.preventDefault();const b=document.getElementById('next');if(!b.disabled)next()}});
+  room.onConnection(c=>{const s=document.getElementById('status');if(!s)return;s.className='status'+(c?'':' off');s.lastChild.textContent=c?'На связи':'Переподключаюсь…'});
+}
+function topHouse(h){let b=null;for(const k of HOUSES)if(h[k][1]&&(!b||h[k][0]>h[b][0]))b=k;return b}
+function screenRender(v){
+  const scr=document.getElementById('scr');if(!scr)return;const pl=P(v);const k=v.ph+':'+v.qi+':'+v.e;
+  if(k!==key){key=k;seen=new Set();lastTick=-1;
+    if(v.ph==='lobby'){
+      scr.innerHTML=`<section class="lobby"><div><h1>Квиз по&nbsp;<em>Гарри Поттеру</em></h1>
+        <p class="sub">${QS.length} вопросов · ${TIME/1000} секунд на ответ · чем быстрее, тем больше очков</p>
+        <div class="join"><div class="qr" id="qr"></div><div><b>Наведи камеру телефона на QR-код</b><div class="url">${esc(LINK)}</div><div style="opacity:.75">Без регистрации, с любого интернета · код игры <b>${esc(CODE)}</b></div></div></div></div>
+        <div class="hall"><h2><b id="pc">0</b> <span id="pcw">волшебников</span> в зале</h2><div class="cloud" id="cloud"></div><div class="mini" id="mini"></div></div></section>`;
+      try{const q=qrcode(0,'M');q.addData(LINK);q.make();document.getElementById('qr').innerHTML=q.createSvgTag({cellSize:8,margin:0,scalable:true})}catch(e){}
+    }else if(v.ph==='question'||v.ph==='reveal'){
+      const q=QS[v.qi],rev=v.ph==='reveal';
+      scr.innerHTML=`<section class="qwrap ${rev?'reveal':''}"><header class="qhead"><div class="qnum">Вопрос ${v.qi+1} из ${QS.length}</div><div class="answered"><b id="ans">0</b> из <span id="tot">0</span> ответили</div></header>
+        <div class="qmain">${!rev?`<div class="timer" id="timer"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="none" stroke="#ffffff1a" stroke-width="8"/><circle id="ring" cx="50" cy="50" r="44" fill="none" stroke="var(--gold)" stroke-width="8" stroke-linecap="round" stroke-dasharray="276.5"/></svg><div class="num" id="tnum"></div></div>`:`<div class="timer"><svg viewBox="0 0 100 100" style="transform:none"><circle cx="50" cy="50" r="44" fill="#e0b25a22" stroke="var(--gold)" stroke-width="4"/><path d="M30 52l13 13 27-30" fill="none" stroke="var(--gold2)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`}<h1 class="qtext">${esc(q.q)}</h1></div>
+        <div class="tiles">${q.a.map((a,i)=>`<div class="tile ans${i} ${rev?(i===q.c?'right':'wrong'):''}">${shape(i)}<span class="txt">${esc(a)}</span><span class="cnt" id="c${i}">0</span><i class="bar" id="b${i}"></i></div>`).join('')}</div>
+        ${rev?`<div class="fact">${esc(q.fact)}</div>`:'<div class="strip" id="strip"></div>'}</section>`;
+      if(rev){chime();setTimeout(()=>(v.cnt||[]).forEach((n,i)=>{const el=document.getElementById('b'+i);if(el)el.style.width=(n/(v.n||1)*100)+'%'}),60)}
+    }else if(v.ph==='board'){
+      scr.innerHTML=`<section class="board"><div><h1>${v.qi+1>=QS.length?'Перед финалом':'Таблица лидеров'}</h1><ol class="lb" id="lb"></ol></div><div><h2>Кубок факультетов</h2><div class="cup" id="cup"></div></div></section>`;
+      const lb=document.getElementById('lb');
+      lb.innerHTML=pl.slice(0,8).map(p=>{const d=p.prev?p.prev-p.rank:0;return `<li class="row" data-s="${p.prev&&p.prev<=10?d:0}"><span class="r">${p.rank}</span><i class="dot" style="background:var(--${p.house})"></i><span class="n">${esc(p.name)}${d>0?`<span class="mv up">▲${d}</span>`:d<0?`<span class="mv dn">▼${-d}</span>`:''}</span><span class="g">${p.gain?'+'+p.gain:''}</span><span class="s">${p.score}</span></li>`}).join('')||'<li class="empty">Пока никого</li>';
+      const rows=[...lb.children];rows.forEach(r=>{const s=+r.dataset.s||0;if(s){r.style.transition='none';r.style.transform=`translateY(${s*(r.offsetHeight+9)}px)`}});
+      requestAnimationFrame(()=>requestAnimationFrame(()=>rows.forEach(r=>{r.style.transition='';r.style.transform=''})));
+      const max=Math.max(1,...HOUSES.map(h=>v.h[h][0]));
+      document.getElementById('cup').innerHTML=HOUSES.slice().sort((a,b)=>v.h[b][0]-v.h[a][0]).map(h=>`<div class="hrow"><div class="hn"><span>${HN[h]} <span class="muted" style="font-weight:500">· ${v.h[h][1]}</span></span><span>${v.h[h][0]}</span></div><div class="hbar"><i data-w="${v.h[h][0]/max*100}" style="background:var(--${h})"></i></div></div>`).join('');
+      setTimeout(()=>document.querySelectorAll('.hbar i').forEach(i=>i.style.width=i.dataset.w+'%'),80);
+    }else if(v.ph==='final'){
+      const [a,b,c]=pl,H=topHouse(v.h);
+      const pod=(p,n)=>p?`<div class="pod p${n}"><div class="nm"><i class="dot" style="background:var(--${p.house})"></i> ${esc(p.name)}</div><div class="sc">${p.score} очков</div><div class="blk">${n}</div></div>`:'<div></div>';
+      scr.innerHTML=`<section class="final"><h1>${a?`Победитель — <span class="gold">${esc(a.name)}</span>`:'Игра окончена'}</h1>${H?`<p style="font-size:1.3em">Кубок факультетов достаётся факультету <b style="color:${light(H)}">${HN[H]}</b></p>`:''}<div class="podium">${pod(b,2)}${pod(a,1)}${pod(c,3)}</div></section>`;
+      fanfare();setTimeout(confetti,700);
+    }
+  }
+  if(v.ph==='lobby'){
+    document.getElementById('pc').textContent=v.n;document.getElementById('pcw').textContent=plural(v.n,'волшебник','волшебника','волшебников');
+    document.getElementById('cloud').innerHTML=pl.length?pl.map(p=>chip(p,!seen.has(p.pid))).join(''):'<p class="empty">Ждём первых игроков… Сканируйте QR-код</p>';
+    pl.forEach(p=>{if(!seen.has(p.pid)){seen.add(p.pid);pling()}});
+    document.getElementById('mini').innerHTML=HOUSES.map(h=>`<span><i class="dot" style="background:var(--${h})"></i>${HN[h]}: ${v.h[h][1]}</span>`).join('');
+  }
+  if(v.ph==='question'||v.ph==='reveal'){
+    document.getElementById('ans').textContent=pl.filter(p=>p.ans).length;document.getElementById('tot').textContent=pl.filter(p=>p.on||p.ans).length;
+    if(v.cnt)v.cnt.forEach((n,i)=>document.getElementById('c'+i).textContent=n);
+    const st=document.getElementById('strip');if(st){st.innerHTML=pl.filter(p=>p.ans).map(p=>chip(p,false)).join('');pl.forEach(p=>{if(p.ans&&!seen.has(p.pid)){seen.add(p.pid);pling()}})}
+  }
+  const b=document.getElementById('next');
+  if(b){b.textContent={lobby:'Начать игру',question:'Показать ответ',reveal:'Таблица лидеров',board:v.qi+1>=QS.length?'Итоги':'Следующий вопрос',final:'Новая игра'}[v.ph]+' →';b.disabled=v.ph==='lobby'&&!v.n}
+}
+function tick(){
+  const t=document.getElementById('tnum');
+  if(t&&deadline&&V){const ms=Math.max(0,deadline-Date.now()),s=Math.ceil(ms/1000);t.textContent=s;document.getElementById('ring').style.strokeDashoffset=276.5*(1-ms/TIME);document.getElementById('timer').classList.toggle('low',s<=5);if(s<=5&&s>0&&s!==lastTick){lastTick=s;beep(s<=3?880:660,.08,'square',.05)}}
+  const tb=document.getElementById('tb');
+  if(tb&&deadline){const ms=Math.max(0,deadline-Date.now());tb.style.width=(ms/TIME*100)+'%';if(ms===0&&V&&V.ph==='question'&&mine()==null){pkey='';playRender({...V,rem:0})}}
+  requestAnimationFrame(tick)}
+requestAnimationFrame(tick);
+
+/* ================= ТЕЛЕФОН ================= */
+let me={name:store.get('hpq-name')||'',house:store.get('hpq-house')||''},editing=!me.name||!me.house,pkey='',picked={},hostSeen=false;
+const mine=()=>V?picked[V.e+':'+V.qi]:null;
+function playShell(){app.innerHTML='<div class="ply" id="ply"></div>';if(editing)joinView();else{room.presence({pid:PID,name:me.name,house:me.house,a:null}).catch(()=>{});waitHost()}}
+function waitHost(){const el=document.getElementById('ply');if(!V&&el)el.innerHTML=`<div class="center"><h1>Квиз по <em>Гарри Поттеру</em></h1><p class="lead">Ждём ведущего… Главный экран должен быть открыт.</p></div>`}
+function joinView(){
+  const el=document.getElementById('ply');
+  el.innerHTML=`<div class="center"><h1>Квиз по <em>Гарри Поттеру</em></h1><form id="f" novalidate>
+    <div><label for="nm">Как тебя зовут?</label><input id="nm" maxlength="18" autocomplete="nickname" placeholder="Например, Гермиона" value="${esc(me.name)}"></div>
+    <div><label>Выбери факультет</label><div class="houses">${HOUSES.map(h=>`<button type="button" class="house" data-h="${h}" aria-pressed="${h===me.house}" style="--c:var(--${h})"><svg viewBox="0 0 24 24"><path d="${CREST}" fill="var(--${h})" stroke="#fff6"/></svg>${HN[h]}<small>${HD[h]}</small></button>`).join('')}</div></div>
+    <p class="err" id="err"></p><button class="btn big" type="submit">Войти в Большой зал</button></form></div>`;
+  let house=me.house;
+  el.querySelectorAll('.house').forEach(b=>b.onclick=()=>{house=b.dataset.h;el.querySelectorAll('.house').forEach(x=>x.setAttribute('aria-pressed',x===b))});
+  document.getElementById('f').onsubmit=e=>{e.preventDefault();const n=cleanName(document.getElementById('nm').value),err=document.getElementById('err');
+    if(!n){err.textContent='Напиши имя';return}if(!house){err.textContent='Выбери факультет';return}
+    me={name:n,house};store.set('hpq-name',n);store.set('hpq-house',house);editing=false;pkey='';
+    room.presence({pid:PID,name:n,house,a:null}).catch(()=>{});if(V)playRender(V);else waitHost()};
+}
+function topBar(p){return `<div class="top"><span class="me"><i class="dot" style="background:var(--${me.house})"></i>${esc(me.name)}</span><span>${p?p.score:0} очков</span></div>`}
+const WAND=`<svg class="wand" viewBox="0 0 88 88"><path d="M14 76 66 24" stroke="#c9a36a" stroke-width="6" stroke-linecap="round"/><g class="spark" fill="var(--gold2)"><circle cx="70" cy="6" r="3"/><circle cx="82" cy="18" r="2.4"/><circle cx="70" cy="30" r="2"/><circle cx="58" cy="18" r="2.6"/></g></svg>`;
+function playRender(v){
+  const el=document.getElementById('ply');if(!el||editing)return;
+  const pl=P(v),p=pl.find(x=>x.pid===PID),m=mine();
+  const k=[v.ph,v.qi,v.e,m!=null?1:0,v.rem>0?1:0,v.ph==='lobby'||v.ph==='board'?v.n+':'+(p?p.rank:0):''].join(':');
+  if(k===pkey)return;pkey=k;
+  if(v.ph==='lobby'){
+    el.innerHTML=`${topBar(p)}<div class="center">${WAND}<h1>Ты в игре, <em>${esc(me.name)}</em>!</h1><p class="lead">Смотри на большой экран. Ведущий скоро начнёт.<br>В зале: ${v.n}.</p><button class="link" id="edit">Сменить имя или факультет</button></div>`;
+    document.getElementById('edit').onclick=()=>{editing=true;joinView()};
+  }else if(v.ph==='question'){
+    const q=QS[v.qi];
+    if(m==null&&v.rem>0&&Date.now()<deadline){
+      el.innerHTML=`${topBar(p)}<div class="timebar"><i id="tb"></i></div><p class="qt">${esc(q.q)}</p><div class="grid">${q.a.map((a,i)=>`<button class="opt ans${i}" data-i="${i}">${shape(i)}<span>${esc(a)}</span></button>`).join('')}</div>`;
+      el.querySelectorAll('.opt').forEach(b=>b.onclick=()=>answer(v,+b.dataset.i));
+    }else if(m==null){el.innerHTML=`${topBar(p)}<div class="center"><div class="res none"><h1>Время вышло</h1><p>Смотри ответ на экране</p></div></div>`}
+    else el.innerHTML=`${topBar(p)}<div class="center">${WAND}<h1>Ответ принят</h1><div class="opt ans${m} picked" style="min-height:90px">${shape(m)}<span>${esc(q.a[m])}</span></div><p class="lead">Ждём остальных волшебников…</p></div>`;
+  }else if(v.ph==='reveal'){
+    const q=QS[v.qi],ok=m!=null&&m===q.c;
+    el.innerHTML=`${topBar(p)}<div class="center"><div class="res ${m==null?'none':ok?'ok':'bad'}"><h1>${m==null?'Нет ответа':ok?'Верно!':'Мимо'}</h1>${ok?`<div class="pts">+${p?p.gain:''}</div>`:`<p>Правильный ответ: <b>${esc(q.a[q.c])}</b></p>`}</div>${p?`<p class="score">Ты на ${p.rank} месте из ${v.n}</p>`:''}</div>`;
+    try{navigator.vibrate&&navigator.vibrate(ok?[60,40,60]:200)}catch(e){}
+  }else if(v.ph==='board'){
+    el.innerHTML=`${topBar(p)}<div class="center"><p class="lead">Твоё место</p><div class="rank">${p?p.rank:'—'}</div><p class="score">${p?p.score:0} очков · игроков: ${v.n}</p><p class="lead">${p&&p.rank===1?'Ты лидируешь! Не сбавляй темп.':'Смотри таблицу на большом экране'}</p></div>`;
+  }else if(v.ph==='final'){
+    const H=topHouse(v.h),r=p?p.rank:0;
+    el.innerHTML=`${topBar(p)}<div class="center"><h1>${r===1?'Ты чемпион турнира!':r&&r<=3?'Ты на пьедестале!':'Отличная игра!'}</h1><div class="rank">${r||'—'}</div><p class="score">место из ${v.n} · ${p?p.score:0} очков</p>${H?`<p class="lead">Кубок факультетов: <b style="color:${light(H)}">${HN[H]}</b>${H===me.house?' — это твой факультет!':''}</p>`:''}</div>`;
+    try{navigator.vibrate&&navigator.vibrate([80,60,80,60,200])}catch(e){}
+  }
+}
+function answer(v,c){
+  const k=v.e+':'+v.qi;if(picked[k]!=null)return;picked[k]=c;
+  try{navigator.vibrate&&navigator.vibrate(30)}catch(e){}
+  room.presence({a:{e:v.e,q:v.qi,c,ms:Math.round(TIME-Math.max(0,deadline-Date.now()))}}).catch(()=>{});
+  pkey='';playRender(v);
+}
+
+/* ================= связь: публичный MQTT-брокер ================= */
+const BROKERS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt'];
+const qs=new URLSearchParams(location.search);
+let CODE=(qs.get('g')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,8);
+let BI=Math.min(BROKERS.length-1,Math.max(0,parseInt(qs.get('b')||'0',10)||0));
+if(qs.get('broker'))BROKERS.unshift(qs.get('broker'));
+function makeRoom(code,host,brokerUrl){
+  const T='hpq3/'+code;const pres={};let my={},state=null;
+  const handlers={},peerH=[],connH=[];let connected=false;
+  const client=mqtt.connect(brokerUrl,{clientId:'hpq_'+Math.random().toString(16).slice(2,10),keepalive:20,reconnectPeriod:2000,connectTimeout:8000,clean:true});
+  client.on('connect',()=>{connected=true;connH.forEach(f=>f(true));client.subscribe(T+'/s');if(host)client.subscribe(T+'/p/+');if(Object.keys(my).length)pub()});
+  client.on('close',()=>{if(connected){connected=false;connH.forEach(f=>f(false))}});
+  client.on('offline',()=>{connected=false;connH.forEach(f=>f(false))});
+  client.on('message',(topic,buf)=>{
+    let d=null;try{d=buf.length?JSON.parse(buf.toString()):null}catch(e){return}
+    if(topic===T+'/s'){if(d)(handlers.state||[]).forEach(f=>f({data:d}));return}
+    const pid=topic.slice((T+'/p/').length);
+    if(!d)delete pres[pid];else pres[pid]={...d,_seen:Date.now()};
+    firePeers();
+  });
+  function pub(){my.t=Date.now();client.publish(T+'/p/'+PID,JSON.stringify(my),{retain:true,qos:0})}
+  function list(){const now=Date.now();return Object.entries(pres).filter(([k,v])=>now-Math.max(v.t||0,0)<16000||now-v._seen<16000&&now-(v.t||0)<60000).map(([k,v])=>({peer:k,kind:'viewer',sameTab:false,presence:v}))}
+  let pT=null;function firePeers(){if(pT)return;pT=setTimeout(()=>{pT=null;const ps=list();peerH.forEach(f=>f({peers:ps}))},120)}
+  if(!host)setInterval(()=>{if(connected&&my.pid)pub()},5000);
+  if(host)setInterval(firePeers,3000);
+  addEventListener('pagehide',()=>{try{if(!host&&my.pid)client.publish(T+'/p/'+PID,'',{retain:true})}catch(e){}});
+  return {
+    peers:list,onPeers(f){peerH.push(f);return()=>{}},
+    on(t,f){(handlers[t]=handlers[t]||[]).push(f);return()=>{}},
+    async emit(t,d){if(t==='state'&&connected)client.publish(T+'/s',JSON.stringify(d),{retain:true,qos:0})},
+    async presence(p){for(const k in p){if(p[k]===null)delete my[k];else my[k]=p[k]}if(connected)pub()},
+    onConnection(f){connH.push(f);setTimeout(()=>f(connected),0);return()=>{}},connected:()=>connected,
+    get ok(){return connected}
+  };
+}
+function newCode(){const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let c='';const r=crypto.getRandomValues(new Uint8Array(6));for(const x of r)c+=A[x%A.length];return c}
+function base(){return location.origin+location.pathname}
+
+/* ================= старт ================= */
+function landing(){
+  app.innerHTML=`<div class="msg"><div><h1>Квиз по <em>Гарри Поттеру</em></h1>
+  <p class="muted" style="font-size:18px">Открой главный экран на компьютере или телевизоре.<br>Игроки зайдут с телефонов по QR-коду, без регистрации.</p>
+  <div class="choose"><button class="btn" id="goS">Открыть главный экран</button></div>
+  <p class="muted" style="margin-top:28px">Ты игрок? Отсканируй QR-код на большом экране.</p></div></div>`;
+  document.getElementById('goS').onclick=()=>{location.href=base()+'?screen=1'};
+}
+function connectWait(r,cb){let done=false;r.onConnection(c=>{if(c&&!done){done=true;cb(true)}});setTimeout(()=>{if(!done){done=true;cb(false)}},9000)}
+function startHost(){
+  isHost=true;
+  let code=null;try{code=localStorage.getItem('hpq-host-code')}catch(e){}
+  if(!code){code=newCode();try{localStorage.setItem('hpq-host-code',code)}catch(e){}}
+  CODE=code;
+  app.innerHTML='<div class="msg"><div><h1>Квиз по <em>Гарри Поттеру</em></h1><p class="muted">Подключаемся…</p></div></div>';
+  const tryB=i=>{
+    room=makeRoom(CODE,true,BROKERS[i]);
+    connectWait(room,ok=>{
+      if(!ok&&i+1<BROKERS.length){tryB(i+1);return}
+      if(!ok){app.innerHTML='<div class="msg"><div><h1>Нет связи</h1><p class="muted">Не удалось подключиться к серверу игры. Проверь интернет и обнови страницу.</p></div></div>';return}
+      BI=i;LINK=base()+'?g='+CODE+(i?'&b='+i:'');
+      try{const saved=JSON.parse(localStorage.getItem('hpq-host-game')||'null');if(saved&&saved.code===CODE&&Date.now()-saved.at<6*3600e3){Object.assign(G,saved.g);G.timer=null;if(G.ph==='question'){G.ph='board'}}}catch(e){}
+      mode='screen';screenShell();hostStart();
+    });
+  };
+  tryB(BI);
+}
+function startPlayer(){
+  mode='play';
+  app.innerHTML='<div class="msg"><div><h1>Квиз по <em>Гарри Поттеру</em></h1><p class="muted">Подключаемся к Большому залу…</p></div></div>';
+  room=makeRoom(CODE,false,BROKERS[BI]);
+  room.on('state',msg=>{if(mode==='play'){hostSeen=true;onState(msg.data)}});
+  connectWait(room,ok=>{
+    if(!ok){app.innerHTML='<div class="msg"><div><h1>Нет связи</h1><p class="muted">Не получается подключиться. Проверь интернет и обнови страницу.</p></div></div>';return}
+    playShell();
+  });
+}
+(()=>{
+  if(typeof mqtt==='undefined'){app.innerHTML='<div class="msg"><div><h1>Ошибка загрузки</h1><p class="muted">Обнови страницу.</p></div></div>';return}
+  if(qs.get('screen'))startHost();else if(CODE)startPlayer();else landing();
+})();
+}
+</script>
+</body>
+</html>
