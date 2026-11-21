@@ -14,3 +14,7 @@
 - Fox.glb — модель PixelMannen (CC0), риг и анимация @tomkranis (CC BY 4.0), конвертация glTF: AsoboStudio и scurest. Источник: KhronosGroup/glTF-Sample-Assets.
 - Змея, единорог (рог), фестрал (крылья), свечение и частицы — собственный код.
 - MaraudersMap.glb — «The Marauder's Map [FREE, RIGGED]», автор Saandy (Sketchfab), CC BY 4.0.
+
+
+## 3D-модели (Sketchfab)
+CC BY 4.0, если не указано иное: Marauder’s Map — Saandy; Triwizard Cup — valerycacid; Golden Snitch — Gisduyg; Cornish Pixie — SidewalkNZ; Phoenix — NORBERTO-3D; Ice Dragon — chengzijieczj; Black Dragon — 3DHaupt (CC BY-NC); Lioness — Zee; Eagle — Asim3d; Python — yaman.serhan; Honey Badger — WildMesh 3D (CC BY-NC). Horse, Parrot — three.js (MIT); Fox — PixelMannen (CC0).
