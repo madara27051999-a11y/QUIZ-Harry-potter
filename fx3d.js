@@ -13,7 +13,7 @@ let renderer,scene,camera,canvas,clock,running=false,effects=[],ok=false,models=
 function init(){
   canvas=document.createElement('canvas');canvas.className='fx3d';document.body.appendChild(canvas);
   try{renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,premultipliedAlpha:true,powerPreference:'high-performance'})}catch(e){canvas.remove();return false}
-  renderer.setPixelRatio(Math.min(1.75,devicePixelRatio||1));renderer.setClearColor(0x000000,0);renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  renderer.setPixelRatio(Math.min(innerWidth<700?1.25:1.75,devicePixelRatio||1));renderer.setClearColor(0x000000,0);renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(38,1,.1,400);camera.position.set(0,2,16);camera.lookAt(0,1.4,0);
   try{const pm=new THREE.PMREMGenerator(renderer);scene.environment=pm.fromScene(new RoomEnvironment(),.04).texture}catch(e){}
   scene.add(new THREE.AmbientLight(0xffffff,.25));const dl=new THREE.DirectionalLight(0xffffff,1.4);dl.position.set(4,8,6);scene.add(dl);
@@ -105,10 +105,11 @@ function pickVertex(mesh,score){const p=mesh.geometry.attributes.position;let be
 function randomVertexWorld(inst,out){const m=inst.meshes[0],p=m.geometry.attributes.position,i=Math.random()*p.count|0;out.set(p.getX(i),p.getY(i),p.getZ(i));return m.localToWorld(out)}
 
 /* ---------- эффекты ---------- */
-function addEffect(e){effects.push(e);if(!running){running=true;canvas.style.display='block';clock.getDelta();requestAnimationFrame(tick)}return e}
+let ticking=false,pending=[];
+function addEffect(e){if(ticking){pending.push(e);return e}effects.push(e);if(!running){running=true;canvas.style.display='block';clock.getDelta();requestAnimationFrame(tick)}return e}
 function tick(){
   const dt=Math.min(window.__fxCap||.05,clock.getDelta());
-  effects=effects.filter(e=>{const alive=e.update(dt);if(!alive&&e.dispose)e.dispose();return alive});
+  ticking=true;effects=effects.filter(e=>{const alive=e.update(dt);if(!alive&&e.dispose)e.dispose();return alive});ticking=false;if(pending.length){effects.push(...pending);pending=[]}
   stepParticles(dt);
   renderer.render(scene,camera);
   if(effects.length||anyParticles())requestAnimationFrame(tick);else{running=false;canvas.style.display='none';setMode('screen')}
@@ -143,17 +144,17 @@ const KINDS={
   phoenix:{n:'Феникс',model:'Parrot',len:7.5,fire:true,ts:.8,bird:true},
 };
 let lastKind='';
-function creature(kindKey,from){
-  const K=KINDS[kindKey];const mat=K.fire?fireMat():ghostMat(K.col,{rim:K.rim,core:K.core,pow:K.pow});
+function creature(kindKey,from,opt={}){
+  const K={...KINDS[kindKey]};if(opt.len)K.len=opt.len;const mat=K.fire?fireMat():ghostMat(K.col,{rim:K.rim,core:K.core,pow:K.pow});
   const I=instance(K.model,mat,K.len);I.play(K.clip,K.ts);scene.add(I.pivot);
-  const dir=from.x<innerWidth/2?1:-1;
+  const dir=opt.dirOverride||(from.x<innerWidth/2?1:-1);
   const start=screenToWorld(from.x,from.y,0),endX=dir*20,z0=0,z1=-4,y0=K.bird?.8:K.fly?1.2:-1.6;
   const keys=models.horseKeys,m=I.meshes[0],extras={};const v=new THREE.Vector3(),v2=new THREE.Vector3(),v3=new THREE.Vector3(),UP=new THREE.Vector3(0,1,0);
   if(K.horn){const hm=ghostMat('#ffe7a0',{rim:'#ffffff',core:.9,pow:1.2});const hg=new THREE.ConeGeometry(.07,1,24,1);hg.translate(0,.5,0);
     const pos=hg.attributes.position;for(let i=0;i<pos.count;i++){const y=pos.getY(i),a=Math.atan2(pos.getZ(i),pos.getX(i));const r=Math.hypot(pos.getX(i),pos.getZ(i))*(1+.25*Math.sin(a*2+y*40));pos.setX(i,Math.cos(a)*r);pos.setZ(i,Math.sin(a)*r)}hg.computeVertexNormals();
     extras.horn=new THREE.Mesh(hg,hm);extras.horn.scale.setScalar(.85/I.scale);m.add(extras.horn);extras.hm=hm}
   if(K.wings){for(const s of[1,-1]){const w=K.wings==='bat'?batWing(190):featherWing(K.col,K.rim,190);w.g.scale.set(s,1,1);m.add(w.g);(extras.wings=extras.wings||[]).push({...w,s})}}
-  const T=K.fly?6:5.2;let t=0;
+  const T=opt.speedT||(K.fly?6:5.2);let t=0;
   return addEffect({update(dt){t+=dt;I.mixer.update(dt*(K.fly?.85:1));mat.userData.u&&(mat.userData.u.uT.value=t);if(mat.userData.sh)mat.userData.sh.uniforms.uT.value=t;
     const k=clamp(t/T,0,1),grow=easeO(clamp(t/.9,0,1));
     const x=start.x+(endX-start.x)*easeIO(k),z=z0+(z1-z0)*k,y=start.y+(y0-start.y)*easeO(clamp(t/1.1,0,1))+(K.bird||K.fly?Math.sin(t*2.2)*.5:0);
@@ -163,7 +164,7 @@ function creature(kindKey,from){
     if(extras.horn){morphVertex(m,keys.ear,v);morphVertex(m,keys.nose,v2);v3.subVectors(v2,v).normalize();
       extras.horn.position.copy(v).lerp(v2,.3);extras.horn.position.y+=3;const d=v3.clone().multiplyScalar(1.5).add(UP.clone().multiplyScalar(.75)).normalize();extras.horn.quaternion.setFromUnitVectors(UP,d)}
     if(extras.wings){morphVertex(m,keys.wither,v);const fl=Math.sin(t*(K.wings==='bat'?5:4.2));
-      for(const w of extras.wings){w.g.position.copy(v);w.g.position.y+=4;w.g.position.x+=w.s*6;w.inner.rotation.set(0,0,.55+fl*.85);w.outer.rotation.set(0,0,.25+Math.sin(t*(K.wings==='bat'?5:4.2)-.7)*.6);w.g.rotation.y=0;w.mat.opacity=fade;w.mat.userData.u.uT.value=t}}
+      for(const w of extras.wings){w.g.position.copy(v);w.g.position.y+=4;w.g.position.x+=w.s*6;w.g.rotation.y=.55;w.inner.rotation.set(0,0,.75+fl*.7);w.outer.rotation.set(0,0,.25+Math.sin(t*(K.wings==='bat'?5:4.2)-.7)*.6);w.mat.opacity=fade;w.mat.userData.u.uT.value=t}}
     const n=K.fire?14:6;for(let i=0;i<n;i++){randomVertexWorld(I,v);
       if(K.fire)emit(v,new THREE.Vector3(-dir*rnd(.5,2),rnd(.5,2.4),rnd(-.5,.5)),Math.random()<.4?'#fff1b0':'#ff8a2a',rnd(.25,.6),rnd(.6,1.4),{c2:'#ff2a0a',g:.6});
       else emit(v,new THREE.Vector3(-dir*rnd(.3,1.4),rnd(-.2,.6),rnd(-.4,.4)),K.horn&&Math.random()<.25?'#ffe9a8':K.wings==='bat'?'#9ffff0':kindKey==='abraxan'?'#ffe7a8':'#cfefff',rnd(.12,.3),rnd(.8,1.8))}
@@ -325,12 +326,91 @@ function badgerFinale(){
 }
 
 /* ---------- публичное API ---------- */
+// ---------- Золотой снитч ----------
+function snitch(){
+  const g=new THREE.Group();
+  const gold=new THREE.MeshPhysicalMaterial({color:0xffc94a,metalness:1,roughness:.18,clearcoat:1,clearcoatRoughness:.05,emissive:0x4a2a00,envMapIntensity:1.6});
+  const ball=new THREE.Mesh(new THREE.SphereGeometry(.42,48,32),gold);g.add(ball);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(.42,.025,12,64),gold);ring.rotation.y=Math.PI/2;g.add(ring);
+  const ring2=new THREE.Mesh(new THREE.TorusGeometry(.42,.02,12,64),gold);ring2.rotation.x=Math.PI/2;g.add(ring2);
+  const ws=new THREE.Shape();ws.moveTo(0,0);ws.bezierCurveTo(.4,.5,1.4,.7,2.2,.5);ws.quadraticCurveTo(1.9,.3,2.1,.1);ws.quadraticCurveTo(1.7,.05,1.8,-.15);ws.quadraticCurveTo(1.3,-.1,1.3,-.3);ws.quadraticCurveTo(.7,-.15,0,0);
+  const wg=new THREE.ShapeGeometry(ws,20);const wm=new THREE.MeshPhysicalMaterial({color:0xfff6dc,metalness:.3,roughness:.3,transmission:.4,transparent:true,opacity:.85,side:THREE.DoubleSide,emissive:0x3a3020,iridescence:.6});
+  const wings=[1,-1].map(s=>{const p=new THREE.Group();const m=new THREE.Mesh(wg,wm);m.scale.set(.9,.9,.9);p.add(m);p.position.set(s*.38,.05,0);p.scale.x=s;g.add(p);return p});
+  scene.add(g);const L=new THREE.PointLight(0xffd36a,8,8);scene.add(L);
+  let t=0;const T=5.2;const v=new THREE.Vector3();
+  // траектория: рывки с зависаниями
+  const way=[];for(let i=0;i<7;i++)way.push(new THREE.Vector3(rnd(-7,7),rnd(-1.5,4),rnd(-4,4)));way[0].set(-14,rnd(0,3),0);way[6].set(14,rnd(0,3),-2);
+  return addEffect({update(dt){t+=dt;const k=clamp(t/T,0,1)*6;const i=Math.min(5,Math.floor(k)),f=k-i;const e=f<.55?easeIO(f/.55):1;
+    g.position.copy(way[i]).lerp(way[i+1],e);g.position.y+=Math.sin(t*9)*.08;
+    const d=way[i+1].clone().sub(way[i]);g.rotation.y=Math.atan2(d.x,d.z)*.3;g.rotation.z=Math.sin(t*3)*.2;
+    const fl=Math.sin(t*70)*.9;wings.forEach((w,j)=>{w.rotation.z=(j?-1:1)*(.35+fl*.6);w.rotation.y=(j?1:-1)*.2});
+    L.position.copy(g.position);
+    for(let n=0;n<4;n++){v.copy(g.position).add(new THREE.Vector3(rnd(-.2,.2),rnd(-.2,.2),rnd(-.2,.2)));emit(v,new THREE.Vector3(rnd(-.3,.3),rnd(-.3,.3),rnd(-.3,.3)),Math.random()<.5?'#fff2b0':'#ffc94a',rnd(.08,.2),rnd(.4,1))}
+    return t<T},dispose(){scene.remove(g,L)}});
+}
+// ---------- Дементор (и Патронус, который его прогоняет) ----------
+function dementor(){
+  const g=new THREE.Group();const N=7;const strips=[];
+  const cm=new THREE.MeshStandardMaterial({color:0x050608,roughness:1,side:THREE.DoubleSide,transparent:true,opacity:.95,envMapIntensity:0});
+  cm.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\nfloat fr=pow(1.0-abs(dot(normalize(vViewPosition),normal)),1.6);totalEmissiveRadiance+=vec3(.25,.32,.4)*fr*.6;')};
+  for(let i=0;i<N;i++){const geo=new THREE.PlaneGeometry(1,1,6,24);const m=new THREE.Mesh(geo,cm);m.userData={a:i/N*TAU,base:geo.attributes.position.array.slice(),len:rnd(4.5,6.5),w:rnd(.9,1.4)};g.add(m);strips.push(m)}
+  const hood=new THREE.Mesh(new THREE.SphereGeometry(.75,24,18,0,TAU,0,Math.PI*.62),cm);hood.position.y=.3;hood.scale.set(1,1.25,1.1);g.add(hood);
+  const faceM=new THREE.MeshBasicMaterial({color:0x000000,transparent:true});const face=new THREE.Mesh(new THREE.CircleGeometry(.45,24),faceM);face.position.set(0,.05,.62);g.add(face);
+  const handM=new THREE.MeshStandardMaterial({color:0x3a3f44,roughness:.9,transparent:true});const hands=[1,-1].map(s=>{const h=new THREE.Mesh(new THREE.CylinderGeometry(.02,.05,1.2,6),handM);h.position.set(s*.9,-.6,.4);h.rotation.z=s*.9;g.add(h);return h});
+  scene.add(g);const fog=document.createElement('div');fog.className='frost';document.body.appendChild(fog);
+  let t=0;const T=6.4,v=new THREE.Vector3();let pat=null,dissolve=0;
+  return addEffect({update(dt){t+=dt;
+    const k=clamp(t/3.4,0,1);g.position.set(-10+easeO(k)*9,1.4+Math.sin(t*1.3)*.35,-2);g.rotation.y=.5+Math.sin(t*.7)*.2;
+    for(const m of strips){const u=m.userData,p=m.geometry.attributes.position.array;for(let i=0;i<p.length;i+=3){const bx=u.base[i],by=u.base[i+1];const yy=(by-.5)*u.len;const sway=Math.sin(t*3+yy*1.3+u.a*2)*.35*(.5-by)+Math.sin(t*7+yy*3)*.06;const r=.55+(.5-by)*.9;
+      p[i]=Math.cos(u.a)*r+bx*u.w*Math.cos(u.a+1.57)+sway;p[i+1]=yy+.3+(bx*bx)*.4;p[i+2]=Math.sin(u.a)*r+bx*u.w*Math.sin(u.a+1.57)+Math.cos(t*2.5+yy)*.25*(.5-by)}
+      m.geometry.attributes.position.needsUpdate=true;m.geometry.computeVertexNormals()}
+    hands.forEach((h,j)=>h.rotation.x=Math.sin(t*2+j)*.3);
+    fog.style.opacity=String(Math.min(.85,t/1.5)*(1-dissolve));
+    if(t<3.6)for(let i=0;i<3;i++)emit(new THREE.Vector3(g.position.x+rnd(-1.5,1.5),g.position.y-rnd(1,3),g.position.z+rnd(-1,1)),new THREE.Vector3(rnd(-.3,.3),-rnd(.1,.5),rnd(-.3,.3)),'#9fb8c8',rnd(.3,.7),rnd(1,2));
+    if(t>2.6&&!pat){pat=creature('horse',{x:innerWidth*.92,y:innerHeight*.72},{dirOverride:-1,len:9,speedT:3.6});if(typeof FX2!=='undefined')FX2.showName('Экспекто патронум!')}
+    if(t>3.7){dissolve=clamp((t-3.7)/1.2,0,1);cm.opacity=.95*(1-dissolve);faceM.opacity=handM.opacity=1-dissolve;g.scale.setScalar(1+dissolve*.4);
+      for(let i=0;i<14*(1-dissolve);i++){v.copy(g.position).add(new THREE.Vector3(rnd(-1.5,1.5),rnd(-3,1),rnd(-1,1)));emit(v,new THREE.Vector3(rnd(-3,-.5),rnd(-.5,1.5),rnd(-1,1)),'#cfefff',rnd(.15,.4),rnd(.5,1.2))}}
+    return t<T},dispose(){scene.remove(g);fog.remove()}});
+}
+// ---------- Заклинания ----------
+const SPELLS={
+  avada:{n:'Авада Кедавра!',col:'#3dff6a',core:'#d8ffd8',flash:'rgba(40,255,90,.55)'},
+  expelliarmus:{n:'Экспеллиармус!',col:'#ff3a3a',core:'#ffe0d0',flash:'rgba(255,60,40,.35)'},
+  stupefy:{n:'Остолбеней!',col:'#ff6a2a',core:'#fff0c0',flash:'rgba(255,120,40,.3)'},
+  protego:{n:'Протего!',col:'#7cc8ff',core:'#ffffff',flash:'rgba(120,200,255,.3)',shield:true},
+};
+function spell(key){
+  const S=SPELLS[key];const dir=Math.random()<.5?1:-1;
+  const from=screenToWorld(dir>0?innerWidth*.06:innerWidth*.94,innerHeight*.9,0),to=screenToWorld(dir>0?innerWidth*.8:innerWidth*.2,innerHeight*rnd(.25,.45),-3);
+  if(typeof FX2!=='undefined'){FX2.showName(S.n);FX2.wandCast(dir>0?innerWidth*.08:innerWidth*.92,innerHeight*.96,dir>0,()=>{})}
+  const core=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,1,12,1,true),new THREE.MeshBasicMaterial({color:S.core,transparent:true}));
+  const glow=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,1,16,1,true),new THREE.MeshBasicMaterial({color:S.col,transparent:true,opacity:.55,blending:THREE.AdditiveBlending,depthWrite:false}));
+  const bolt=new THREE.Group();bolt.add(core,glow);scene.add(bolt);let shield=null;
+  if(S.shield){shield=new THREE.Mesh(new THREE.SphereGeometry(2.6,48,32,0,TAU,0,Math.PI/2),ghostMat('#7cc8ff',{rim:'#ffffff',core:.05,pow:1.2}));shield.rotation.x=-Math.PI/2*dir;shield.rotation.z=Math.PI/2;shield.position.copy(to);shield.scale.setScalar(.01);scene.add(shield)}
+  const flash=document.createElement('div');flash.className='spellflash';flash.style.background=`radial-gradient(circle at ${dir>0?80:20}% 35%,${S.flash},transparent 60%)`;document.body.appendChild(flash);
+  let t=0;const T=2.6,v=new THREE.Vector3(),UP=new THREE.Vector3(0,1,0);let hit=false;
+  return addEffect({update(dt){t+=dt;const k=clamp((t-.45)/.5,0,1);
+    const head=from.clone().lerp(to,easeIO(k)),tail=from.clone().lerp(to,easeIO(clamp((t-.75)/.6,0,1)));
+    const len=head.distanceTo(tail);bolt.visible=len>.05&&t<1.4;if(bolt.visible){bolt.position.copy(head).lerp(tail,.5);bolt.quaternion.setFromUnitVectors(UP,head.clone().sub(tail).normalize());bolt.scale.set(1+Math.sin(t*60)*.15,len,1+Math.sin(t*50)*.15)}
+    if(k>0&&k<1)for(let i=0;i<10;i++){v.copy(tail).lerp(head,Math.random());emit(v,new THREE.Vector3(rnd(-.5,.5),rnd(-.5,.5),rnd(-.5,.5)),Math.random()<.4?S.core:S.col,rnd(.15,.4),rnd(.3,.8))}
+    if(k>=1&&!hit){hit=true;flash.classList.add('on');for(let i=0;i<260;i++){const d=new THREE.Vector3(rnd(-1,1),rnd(-1,1),rnd(-1,1)).normalize().multiplyScalar(rnd(2,9));emit(to,d,Math.random()<.3?S.core:S.col,rnd(.2,.6),rnd(.6,1.4),{drag:.94})}}
+    if(shield){const s=easeO(clamp((t-.75)/.4,0,1))*(t>2?clamp((T-t)/.6,0,1):1);shield.scale.setScalar(Math.max(.01,s));shield.material.opacity=.7*s;shield.material.userData.u.uT.value=t}
+    return t<T},dispose(){scene.remove(bolt);if(shield)scene.remove(shield);flash.remove()}});
+}
+
 const API={ready:false,
   patronus(){if(!API.ready)return false;const keys=Object.keys(KINDS).filter(k=>k!==lastKind);const k=keys[Math.random()*keys.length|0];lastKind=k;const K=KINDS[k];
     const dir=Math.random()<.5,wx=dir?innerWidth*.08:innerWidth*.92,wy=innerHeight*.96;
     if(typeof FX2!=='undefined'&&FX2.wandCast){FX2.showName(K.fire?'Феникс':'Экспекто патронум!');FX2.wandCast(wx,wy,dir,(tx,ty)=>{FX2.showName(K.fire?'Феникс':'Патронус: '+K.n);vortex(tx,ty,K.fire?'#ffb040':'#cfefff');creature(k,{x:tx,y:ty})})}
     else creature(k,{x:wx,y:innerHeight*.6});
     return true},
+  transition(){if(!API.ready)return false;const r=Math.random();
+    if(r<.14){if(typeof FX2!=='undefined')FX2.showName('Золотой снитч');snitch();return true}
+    if(r<.26&&innerWidth>=700){if(typeof FX2!=='undefined')FX2.showName('Дементор!');dementor();return true}
+    if(r<.44){const ks=Object.keys(SPELLS);spell(ks[Math.random()*ks.length|0]);return true}
+    return API.patronus()},
+  clear(){for(const e of effects)e.update=()=>false;for(const d of pData)d.life=0;document.querySelectorAll('.frost,.spellflash').forEach(x=>x.remove())},
+  snitch(){if(API.ready)snitch()},dementor(){if(API.ready)dementor()},spell(k){if(API.ready)spell(k||'avada')},
   creature(k){if(!API.ready)return false;creature(k,{x:innerWidth*.1,y:innerHeight*.7});return true},
   house(h,onDone){if(!API.ready)return null;const f={gryffindor:phoenixFinale,slytherin:snakeFinale,ravenclaw:eagleFinale,hufflepuff:badgerFinale}[h];if(!f)return null;const e=f();const d=e.dispose;e.dispose=()=>{d&&d();onDone&&onDone()};return e},
   stop(e){if(e)e.update=()=>false},
