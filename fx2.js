@@ -243,5 +243,51 @@ function shade(hex){const n=parseInt(hex.slice(1),16),r=n>>16,g=n>>8&255,b=n&255
 function stop(it){if(it)it.dead=true}
 function drawAt(key,x,y,s,ph,st,col,far){ensure();c=mc;const sp=key==='snake'?{k:'snake'}:SPECIES[key];c.setTransform(DPR,0,0,DPR,0,0);c.save();c.translate(x,y);c.scale(s,s);c.lineCap='round';c.lineJoin='round';c.shadowColor='#7cc4ff';c.shadowBlur=12;
   if(key==='snake')snakeDraw(ph*2,300,col);else sp.draw(ph,st,col,far);c.restore()}
-return {patronus,phoenixFire,house,stop,drawAt,burst,SPECIES,wandCast,showName};
+/* ---------- заклинания-молнии ---------- */
+function boltPath(x1,y1,x2,y2,disp,depth){let pts=[[x1,y1],[x2,y2]];for(let d=0;d<depth;d++){const np=[pts[0]];for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1];const mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2,dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy)||1;const o=(Math.random()-.5)*disp;np.push([mx-dy/l*o,my+dx/l*o],b)}pts=np;disp*=.55}return pts}
+function strokePath(pts,upto){c.beginPath();const n=Math.max(2,Math.floor(pts.length*upto));c.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<n;i++)c.lineTo(pts[i][0],pts[i][1]);c.stroke();return pts[n-1]}
+function spellBolt(o){
+  // o: {x1,y1,x2,y2,col,core,jag,dur,branches,width,onHit}
+  ensure();let paths=null,last=0,hit=false;const D=o.dur||1400;
+  const L=Math.hypot(o.x2-o.x1,o.y2-o.y1);
+  return start({dur:D,custom:(t,now,dt)=>{
+    if(!paths||now-last>55){last=now;paths=[boltPath(o.x1,o.y1,o.x2,o.y2,L*(o.jag??.22),8)];
+      for(let b=0;b<(o.branches??4);b++){const main=paths[0],i=Math.floor(main.length*(.2+Math.random()*.6)),p=main[i];const ang=Math.atan2(o.y2-o.y1,o.x2-o.x1)+(Math.random()-.5)*1.6,len=L*(.1+Math.random()*.2);paths.push(boltPath(p[0],p[1],p[0]+Math.cos(ang)*len,p[1]+Math.sin(ang)*len,len*.4,6))}}
+    const grow=Math.min(1,t/.12),fade=t<.7?1:Math.max(0,(1-t)/.3),flick=.75+.25*Math.random();
+    c=mc;c.save();c.setTransform(DPR,0,0,DPR,0,0);c.globalCompositeOperation='lighter';c.lineCap='round';c.lineJoin='round';
+    paths.forEach((p,k)=>{const w=(k?.45:1)*(o.width||1);
+      c.globalAlpha=.16*fade*flick;c.strokeStyle=o.col;c.lineWidth=34*w;strokePath(p,grow);
+      c.globalAlpha=.45*fade*flick;c.lineWidth=12*w;c.shadowColor=o.col;c.shadowBlur=30;strokePath(p,grow);c.shadowBlur=0;
+      c.globalAlpha=.95*fade;c.strokeStyle=o.core;c.lineWidth=3.2*w;const end=strokePath(p,grow);
+      if(k===0&&grow<1){c.globalAlpha=1;const R=40;c.drawImage(sprite(o.col),end[0]-R,end[1]-R,R*2,R*2)}});
+    // свечение на концах
+    const R1=(60+Math.random()*20)*fade;c.globalAlpha=.9*fade;c.drawImage(sprite(o.col),o.x1-R1,o.y1-R1,R1*2,R1*2);
+    if(grow>=1){const R2=(130+Math.random()*40)*fade;c.drawImage(sprite(o.col),o.x2-R2,o.y2-R2,R2*2,R2*2)}
+    c.restore();
+    if(grow>=1&&!hit){hit=true;o.onHit&&o.onHit();for(let i=0;i<120;i++){const a=Math.random()*TAU,v=2+Math.random()*9;emit({x:o.x2,y:o.y2,vx:Math.cos(a)*v,vy:Math.sin(a)*v,g:.05,r:2+Math.random()*3,life:1+Math.random()*.8,max:1.8,col:Math.random()<.35?o.core:o.col,drag:.95})}}
+    if(fade>0)for(let i=0;i<2;i++){const p=paths[0][Math.random()*paths[0].length|0];emit({x:p[0],y:p[1],vx:(Math.random()-.5)*1.5,vy:-Math.random()*1.5,r:1.5+Math.random()*2,life:.8,max:.8,col:o.col})}
+  }});
+}
+function thunder(col){try{if(window.__hpqSound===false)return;const a=fxAC(),n=a.sampleRate*2.2,b=a.createBuffer(1,n,a.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++){const k=i/n;d[i]=(Math.random()*2-1)*(k<.03?1:Math.pow(1-k,2.2))}
+  const s=a.createBufferSource();s.buffer=b;const f=a.createBiquadFilter();f.type='lowpass';const t=a.currentTime;f.frequency.setValueAtTime(5000,t);f.frequency.exponentialRampToValueAtTime(180,t+1.8);const g=a.createGain();g.gain.value=.7;s.connect(f).connect(g).connect(a.destination);s.start();
+  const o=a.createOscillator(),og=a.createGain();o.type='sine';o.frequency.setValueAtTime(70,t);o.frequency.exponentialRampToValueAtTime(30,t+1.2);og.gain.setValueAtTime(.5,t);og.gain.exponentialRampToValueAtTime(.001,t+1.4);o.connect(og).connect(a.destination);o.start(t);o.stop(t+1.5)}catch(e){}}
+const SPELL2={
+  avada:{n:'Авада Кедавра!',col:'#2dff5a',core:'#eaffef',flash:'rgba(40,255,90,.6)',jag:.24,branches:5,width:1.25,shake:14},
+  expelliarmus:{n:'Экспеллиармус!',col:'#ff3030',core:'#fff0e8',flash:'rgba(255,50,40,.35)',jag:.08,branches:1,width:1,shake:6},
+  stupefy:{n:'Остолбеней!',col:'#ff5a1a',core:'#fff3d0',flash:'rgba(255,110,40,.3)',jag:.12,branches:2,width:.9,shake:5},
+};
+function castSpell(key){
+  const S=SPELL2[key]||SPELL2.avada;ensure();const dir=Math.random()<.5;
+  const wx=dir?W*.08:W*.92,wy=H*.96;showName(S.n);
+  wandCast(wx,wy,dir,(tx,ty)=>{
+    const x2=dir?W*(.72+Math.random()*.15):W*(.13+Math.random()*.15),y2=H*(.22+Math.random()*.2);
+    if(key==='avada'||key==='stupefy'||key==='expelliarmus')thunder();
+    spellBolt({x1:tx,y1:ty,x2,y2,col:S.col,core:S.core,jag:S.jag,branches:S.branches,width:S.width,dur:key==='avada'?1500:1100,onHit:()=>{
+      const fl=document.createElement('div');fl.className='spellflash on';fl.style.background=`radial-gradient(circle at ${x2/W*100}% ${y2/H*100}%,${S.flash},transparent 65%)`;document.body.appendChild(fl);setTimeout(()=>fl.remove(),1100);
+      const app=document.getElementById('app');if(app&&!matchMedia('(prefers-reduced-motion: reduce)').matches){app.animate([{transform:'translate(0,0)'},{transform:`translate(${S.shake}px,${-S.shake*.6}px)`},{transform:`translate(${-S.shake*.8}px,${S.shake*.5}px)`},{transform:`translate(${S.shake*.4}px,${S.shake*.3}px)`},{transform:'translate(0,0)'}],{duration:420,easing:'ease-out'})}
+    }});
+  });
+}
+
+return {patronus,phoenixFire,house,stop,drawAt,burst,SPECIES,wandCast,showName,castSpell};
 })();

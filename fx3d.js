@@ -398,6 +398,50 @@ function spell(key){
     return t<T},dispose(){scene.remove(bolt);if(shield)scene.remove(shield);flash.remove()}});
 }
 
+// ---------- Русалка (в стиле Патронуса) ----------
+function mermaid(){
+  const L=3.6,SEG=140,RAD=28;const mat=ghostMat('#8ff3ff',{rim:'#f2ffff',core:.3,pow:1.6});mat.side=THREE.DoubleSide;
+  const geo=new THREE.BufferGeometry();const pos=new Float32Array((SEG+1)*(RAD+1)*3),idx=[];
+  for(let i=0;i<SEG;i++)for(let j=0;j<RAD;j++){const a=i*(RAD+1)+j,b=a+RAD+1;idx.push(a,a+1,b,b,a+1,b+1)}
+  geo.setIndex(idx);geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  const body=new THREE.Mesh(geo,mat);body.frustumCulled=false;
+  const g=new THREE.Group();g.add(body);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(1,32,24),mat);head.scale.set(.15,.17,.13);g.add(head);
+  // профиль: ширина (z) и высота (y) по длине тела, u=0 — шея, u=1 — кончик хвоста
+  const prof=u=>{const sm=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t)};
+    let w=.06+.16*sm(0,.06,u)-.07*sm(.1,.22,u)+.07*sm(.22,.32,u)-.05*sm(.34,.6,u)-.1*sm(.6,.97,u);
+    let h=.05+.17*sm(0,.07,u)-.06*sm(.13,.23,u)+.06*sm(.23,.33,u)-.07*sm(.34,.62,u)-.11*sm(.62,.97,u);
+    return [Math.max(.012,w),Math.max(.012,h)]};
+  // хвостовой плавник
+  const fs=new THREE.Shape();fs.moveTo(0,0);fs.bezierCurveTo(.25,.12,.55,.42,.75,.6);fs.quadraticCurveTo(.5,.3,.62,0);fs.quadraticCurveTo(.5,-.3,.75,-.6);fs.bezierCurveTo(.55,-.42,.25,-.12,0,0);
+  const fluke=new THREE.Mesh(new THREE.ShapeGeometry(fs,24),mat);fluke.rotation.x=Math.PI/2;const fg=new THREE.Group();fg.add(fluke);g.add(fg);
+  // волосы
+  const hair=[];for(let k=0;k<9;k++){const m=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(),new THREE.Vector3(-.3,0,0),new THREE.Vector3(-.6,0,0),new THREE.Vector3(-.9,0,0)]),20,.022,6,false),mat);m.userData.k=k;g.add(m);hair.push(m)}
+  // руки
+  const arms=[1,-1].map(s=>{const m=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(),new THREE.Vector3(.3,0,0),new THREE.Vector3(.6,0,0)]),16,.035,8,false),mat);m.userData.s=s;g.add(m);return m});
+  scene.add(g);
+  const spine=u=>new THREE.Vector3(-u*L,0,0);
+  let t=0;const T=6.4,dir=Math.random()<.5?1:-1,y0=rnd(-.5,1.2);const UP=new THREE.Vector3(0,1,0),P=[],TN=[];const v=new THREE.Vector3();
+  return addEffect({update(dt){t+=dt;mat.userData.u.uT.value=t;
+    const w=t*5.2;
+    // волна дельфиньего удара: амплитуда растёт к хвосту
+    for(let i=0;i<=SEG;i++){const u=i/SEG;const p=P[i]||(P[i]=new THREE.Vector3());p.set(-u*L,Math.sin(u*5.2-w)*(.03+.42*u*u)+Math.sin(w*.5)*.05,0)}
+    for(let i=0;i<=SEG;i++){const a=P[Math.max(0,i-1)],b=P[Math.min(SEG,i+1)];TN[i]=(TN[i]||new THREE.Vector3()).subVectors(a,b).normalize()}
+    for(let i=0;i<=SEG;i++){const u=i/SEG,[wz,hy]=prof(u),p=P[i],q=TN[i];const n=new THREE.Vector3(-q.y,q.x,0);
+      for(let j=0;j<=RAD;j++){const an=j/RAD*TAU;const o=(i*(RAD+1)+j)*3;const cy=Math.sin(an)*hy,cz=Math.cos(an)*wz;pos[o]=p.x+n.x*cy;pos[o+1]=p.y+n.y*cy;pos[o+2]=cz}}
+    geo.attributes.position.needsUpdate=true;geo.computeVertexNormals();
+    head.position.set(.16,P[0].y+.04,0);head.rotation.z=Math.sin(w-.3)*.1;
+    const e=P[SEG],q=TN[SEG];fg.position.copy(e);fg.rotation.set(0,0,Math.atan2(-q.y,-q.x));fluke.scale.setScalar(1.05);
+    hair.forEach(m=>{const k=m.userData.k;const pts=[];for(let s=0;s<6;s++){const d=s/5;pts.push(new THREE.Vector3(.2-d*1.7,P[0].y+.16+d*.1+Math.sin(w*.8-d*3+k)*.16*d,(k-4)*.025*(1+d*3)+Math.cos(w*.6-d*2+k)*.1*d))}
+      m.geometry.dispose();m.geometry=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),16,.02*(1-.3*(k%3)/3),6,false)});
+    arms.forEach(m=>{const s=m.userData.s;const sh=P[Math.round(SEG*.1)];const sw=Math.sin(w*.5+s)*.25;const pts=[new THREE.Vector3(sh.x,sh.y+.1,s*.16),new THREE.Vector3(sh.x+.38,sh.y+.24+sw*.2,s*.2),new THREE.Vector3(sh.x+.8,sh.y+.18+sw*.35,s*.12),new THREE.Vector3(sh.x+1.05,sh.y+.1+sw*.4,s*.05)];
+      m.geometry.dispose();m.geometry=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),16,.04,8,false)});
+    const k=clamp(t/T,0,1),x=(-18+36*easeIO(k))*dir;g.position.set(x,y0+Math.sin(t*1.3)*.5,-1);g.rotation.y=dir>0?0:Math.PI;g.rotation.z=Math.sin(t*1.3)*.08*dir;g.scale.setScalar(2.4);
+    const fade=k<.08?k/.08:k>.88?(1-k)/.12:1;mat.opacity=.9*fade;
+    for(let i=0;i<3;i++){v.set(x-dir*rnd(1,5),g.position.y+rnd(-.6,.4),-1+rnd(-.5,.5));emit(v,new THREE.Vector3(rnd(-.2,.2),rnd(.6,1.4),0),'#cffcff',rnd(.08,.22),rnd(1,2.2),{g:.3,drag:.99})}
+    return t<T},dispose(){scene.remove(g)}});
+}
+
 const API={ready:false,
   patronus(){if(!API.ready)return false;const keys=Object.keys(KINDS).filter(k=>k!==lastKind);const k=keys[Math.random()*keys.length|0];lastKind=k;const K=KINDS[k];
     const dir=Math.random()<.5,wx=dir?innerWidth*.08:innerWidth*.92,wy=innerHeight*.96;
@@ -406,11 +450,10 @@ const API={ready:false,
     return true},
   transition(){if(!API.ready)return false;const r=Math.random();
     if(r<.14){if(typeof FX2!=='undefined')FX2.showName('Золотой снитч');snitch();return true}
-    if(r<.26&&innerWidth>=700){if(typeof FX2!=='undefined')FX2.showName('Дементор!');dementor();return true}
-    if(r<.44){const ks=Object.keys(SPELLS);spell(ks[Math.random()*ks.length|0]);return true}
+    if(r<.36&&typeof FX2!=='undefined'&&FX2.castSpell){const ks=['avada','avada','expelliarmus','stupefy'];FX2.castSpell(ks[Math.random()*ks.length|0]);return true}
     return API.patronus()},
   clear(){for(const e of effects)e.update=()=>false;for(const d of pData)d.life=0;document.querySelectorAll('.frost,.spellflash').forEach(x=>x.remove())},
-  snitch(){if(API.ready)snitch()},dementor(){if(API.ready)dementor()},spell(k){if(API.ready)spell(k||'avada')},
+  snitch(){if(API.ready)snitch()},mermaid(){if(API.ready)mermaid()},dementor(){if(API.ready)dementor()},spell(k){if(typeof FX2!=='undefined'&&FX2.castSpell)FX2.castSpell(k||'avada')},
   creature(k){if(!API.ready)return false;creature(k,{x:innerWidth*.1,y:innerHeight*.7});return true},
   house(h,onDone){if(!API.ready)return null;const f={gryffindor:phoenixFinale,slytherin:snakeFinale,ravenclaw:eagleFinale,hufflepuff:badgerFinale}[h];if(!f)return null;const e=f();const d=e.dispose;e.dispose=()=>{d&&d();onDone&&onDone()};return e},
   stop(e){if(e)e.update=()=>false},
