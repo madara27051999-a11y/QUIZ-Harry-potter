@@ -450,7 +450,7 @@ const API={ready:false,
     return true},
   transition(){if(!API.ready)return false;const r=Math.random();
     if(r<.14){if(typeof FX2!=='undefined')FX2.showName('Золотой снитч');snitch();return true}
-    if(r<.36&&typeof FX2!=='undefined'&&FX2.castSpell){const ks=['avada','avada','expelliarmus','stupefy'];FX2.castSpell(ks[Math.random()*ks.length|0]);return true}
+    if(r<.45&&typeof FX2!=='undefined'&&FX2.castSpell){const ks=['avada','expelliarmus','incendio','lumos','leviosa','protego'];FX2.castSpell(ks[Math.random()*ks.length|0]);return true}
     return API.patronus()},
   clear(){for(const e of effects)e.update=()=>false;for(const d of pData)d.life=0;document.querySelectorAll('.frost,.spellflash').forEach(x=>x.remove())},
   snitch(){if(API.ready)snitch()},mermaid(){if(API.ready)mermaid()},dementor(){if(API.ready)dementor()},spell(k){if(typeof FX2!=='undefined'&&FX2.castSpell)FX2.castSpell(k||'avada')},

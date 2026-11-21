@@ -164,7 +164,7 @@ function loop(now){
     if(it.trail)it.trail(s,t,dt);
   }
   c=mc;c.setTransform(DPR,0,0,DPR,0,0);c.globalCompositeOperation='lighter';
-  for(const p of parts){p.life-=dt/60;p.vx*=p.drag;p.vy*=p.drag;p.vy+=p.g*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;const a=Math.max(0,p.life/p.max);c.globalAlpha=a;const r=p.r*(p.grow?1+(1-a)*p.grow:1)*2.4;c.drawImage(sprite(p.col),p.x-r,p.y-r,r*2,r*2)}
+  for(const p of parts){p.life-=dt/60;p.vx*=p.drag;p.vy*=p.drag;p.vy+=p.g*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;const a=Math.max(0,p.life/p.max);c.globalAlpha=a;const r=p.r*(p.grow?1+(1-a)*p.grow:1)*2.4;c.drawImage(p.col==='fire'?flameSprite():sprite(p.col),p.x-r,p.y-r,r*2,r*2)}
   c.globalAlpha=1;parts=parts.filter(p=>p.life>0);
   for(const r of RINGS){const t=(now-r.t0)/1100;if(t<0||t>1)continue;c.globalAlpha=(1-t)*.8;c.strokeStyle=r.col;c.lineWidth=10*(1-t)+1;c.beginPath();c.arc(r.x,r.y,40+t*Math.max(W,H)*.45,0,TAU);c.stroke()}
   c.globalAlpha=1;c.globalCompositeOperation='source-over';RINGS=RINGS.filter(r=>now-r.t0<1100);
@@ -276,7 +276,8 @@ const SPELL2={
   expelliarmus:{n:'Экспеллиармус!',col:'#ff3030',core:'#fff0e8',flash:'rgba(255,50,40,.35)',jag:.08,branches:1,width:1,shake:6},
   stupefy:{n:'Остолбеней!',col:'#ff5a1a',core:'#fff3d0',flash:'rgba(255,110,40,.3)',jag:.12,branches:2,width:.9,shake:5},
 };
-function castSpell(key){
+function castSpell(key){ensure();
+  if(key==='incendio')return incendio();if(key==='lumos')return lumos();if(key==='leviosa')return leviosa();if(key==='protego')return protego();
   const S=SPELL2[key]||SPELL2.avada;ensure();const dir=Math.random()<.5;
   const wx=dir?W*.08:W*.92,wy=H*.96;showName(S.n);
   wandCast(wx,wy,dir,(tx,ty)=>{
@@ -289,5 +290,58 @@ function castSpell(key){
   });
 }
 
-return {patronus,phoenixFire,house,stop,drawAt,burst,SPECIES,wandCast,showName,castSpell};
+/* ---------- заклинания v2: огонь, свет, левитация, щит ---------- */
+function flameSprite(){if(sprites.__fl)return sprites.__fl;const s=document.createElement('canvas');s.width=s.height=64;const g=s.getContext('2d');const gr=g.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,'rgba(255,240,200,.55)');gr.addColorStop(.25,'rgba(255,170,60,.45)');gr.addColorStop(.6,'rgba(230,70,15,.22)');gr.addColorStop(1,'rgba(120,10,0,0)');g.fillStyle=gr;g.fillRect(0,0,64,64);return sprites.__fl=s}
+function shake(px){const app=document.getElementById('app');if(app&&!matchMedia('(prefers-reduced-motion: reduce)').matches)app.animate([{transform:'none'},{transform:`translate(${px}px,${-px*.6}px)`},{transform:`translate(${-px*.8}px,${px*.5}px)`},{transform:'none'}],{duration:380,easing:'ease-out'})}
+// Инсендио: поток огня из палочки
+function incendio(){
+  const dir=Math.random()<.5,wx=dir?W*.08:W*.92,wy=H*.96;showName('Инсендио!');
+  wandCast(wx,wy,dir,(tx,ty)=>{const ang=Math.atan2(H*.45-ty,(dir?W*.6:W*.4)-tx);let fireSnd=false;
+    start({dur:2600,custom:(t,now,dt)=>{const on=t<.65;
+      if(on){for(let i=0;i<30*dt;i++){const a=ang+(Math.random()-.5)*.22,v=7+Math.random()*6;parts.push({x:tx+Math.cos(ang)*20,y:ty+Math.sin(ang)*20,vx:Math.cos(a)*v,vy:Math.sin(a)*v,g:-.09,r:2.5+Math.random()*4,life:.7+Math.random()*.6,max:1.3,col:'fire',drag:.95,grow:3.2})}}
+      if(!fireSnd){fireSnd=true;try{fireSound()}catch(e){}}
+      c=mc;c.save();c.setTransform(DPR,0,0,DPR,0,0);c.globalCompositeOperation='lighter';const R=(on?140:140*(1-(t-.7)/.3))*(.9+.1*Math.random());if(R>0){c.globalAlpha=.5;c.drawImage(sprite('#ff8a2a'),tx-R,ty-R,R*2,R*2)}c.restore()}});});
+}
+// Люмос Максима: шар света взлетает и озаряет экран
+function lumos(){
+  const dir=Math.random()<.5,wx=dir?W*.08:W*.92,wy=H*.96;showName('Люмос Максима!');
+  wandCast(wx,wy,dir,(tx,ty)=>{const X=W*.5,Y=H*.32;
+    start({dur:3400,custom:(t,now,dt)=>{const k=Math.min(1,t/.25),e=1-Math.pow(1-k,3);const x=tx+(X-tx)*e,y=ty+(Y-ty)*e;const pulse=1+.06*Math.sin(now/90);const fade=t<.75?1:Math.max(0,(1-t)/.25);
+      c=mc;c.save();c.setTransform(DPR,0,0,DPR,0,0);c.globalCompositeOperation='lighter';
+      c.globalAlpha=.35*fade*(t>.25?1:k);const big=Math.max(W,H)*.9;c.drawImage(sprite('#cfe8ff'),x-big,y-big,big*2,big*2);
+      c.translate(x,y);c.rotate(now/2500);for(let i=0;i<14;i++){c.rotate(TAU/14);c.globalAlpha=.12*fade;const gr=c.createLinearGradient(0,0,Math.max(W,H)*.6,0);gr.addColorStop(0,'rgba(255,255,255,.9)');gr.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=gr;c.beginPath();c.moveTo(0,0);c.lineTo(Math.max(W,H)*.6,-18-i%3*8);c.lineTo(Math.max(W,H)*.6,18+i%3*8);c.closePath();c.fill()}
+      c.setTransform(DPR,0,0,DPR,0,0);c.globalAlpha=fade;const R=70*pulse*e;c.drawImage(sprite('#ffffff'),x-R,y-R,R*2,R*2);c.drawImage(sprite('#bfe0ff'),x-R*2,y-R*2,R*4,R*4);c.restore();
+      if(Math.random()<.6*dt)emit({x:x+(Math.random()-.5)*60,y:y+(Math.random()-.5)*60,vx:(Math.random()-.5)*2,vy:(Math.random()-.5)*2,r:2+Math.random()*2,life:1.2,max:1.2,col:'#ffffff'})}});});
+}
+// Вингардиум Левиоса: перо плавно взлетает
+function leviosa(){
+  const dir=Math.random()<.5,wx=dir?W*.08:W*.92,wy=H*.96;showName('Вингардиум Левиоса!');
+  wandCast(wx,wy,dir,(tx,ty)=>{const x0=W*(dir?.42:.58),y0=H*.82;
+    start({dur:4200,custom:(t,now,dt)=>{const k=Math.min(1,t/.8),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;const x=x0+Math.sin(t*TAU*1.2)*W*.04,y=y0-(y0-H*.3)*e+Math.sin(t*TAU*2.4)*8;const rot=Math.sin(t*TAU*1.2)*.35-.4;const fade=t<.9?Math.min(1,t/.05):Math.max(0,(1-t)/.1);
+      // нить волшебства от палочки
+      c=mc;c.save();c.setTransform(DPR,0,0,DPR,0,0);c.globalCompositeOperation='lighter';c.globalAlpha=.5*fade*(t<.8?1:0);c.strokeStyle='#cfeeff';c.lineWidth=2;c.shadowColor='#8fd0ff';c.shadowBlur=12;c.beginPath();c.moveTo(tx,ty);c.quadraticCurveTo((tx+x)/2,Math.min(ty,y)-80,x,y);c.stroke();c.restore();
+      c.save();c.setTransform(DPR,0,0,DPR,0,0);c.translate(x,y);c.rotate(rot);c.globalAlpha=fade;const S=Math.min(W,H)*.22;
+      const gr=c.createLinearGradient(-S,0,S,0);gr.addColorStop(0,'#e9dcc0');gr.addColorStop(1,'#fffaf0');c.fillStyle=gr;c.shadowColor='rgba(180,220,255,.9)';c.shadowBlur=24;
+      c.beginPath();c.moveTo(-S,0);c.bezierCurveTo(-S*.6,-S*.32,S*.5,-S*.22,S,-S*.02);c.bezierCurveTo(S*.5,S*.14,-S*.6,S*.22,-S,0);c.fill();c.shadowBlur=0;
+      c.strokeStyle='rgba(120,100,70,.55)';c.lineWidth=1;for(let i=-9;i<=9;i++){const px=i/10*S*.9;c.beginPath();c.moveTo(px,0);c.lineTo(px+S*.08,i%2?-S*.17*(1-Math.abs(i)/10):S*.15*(1-Math.abs(i)/10));c.stroke()}
+      c.strokeStyle='#bba67a';c.lineWidth=3;c.beginPath();c.moveTo(-S*1.15,0);c.lineTo(S,-S*.01);c.stroke();c.restore();
+      if(Math.random()<.8*dt)emit({x:x+(Math.random()-.5)*S,y:y+(Math.random()-.5)*S*.3,vx:(Math.random()-.5),vy:Math.random()*.8,r:1.5+Math.random()*2,life:1.4,max:1.4,col:'#dff3ff'})}});});
+}
+// Протего: мерцающий шестиугольный щит
+function protego(){
+  const dir=Math.random()<.5,wx=dir?W*.08:W*.92,wy=H*.96;showName('Протего!');
+  wandCast(wx,wy,dir,(tx,ty)=>{const X=W*.5,Y=H*.46,R=Math.min(W,H)*.36;let hitT=-1;
+    start({dur:3600,custom:(t,now,dt)=>{const T=t*3.6;const g=Math.min(1,T/.5),e=1-Math.pow(1-g,3),fade=t<.8?1:Math.max(0,(1-t)/.2);
+      if(hitT<0&&T>1.4){hitT=T;shake(6);for(let i=0;i<90;i++){const a=Math.random()*TAU,v=2+Math.random()*6;emit({x:X-R*.6,y:Y-R*.2,vx:Math.cos(a)*v,vy:Math.sin(a)*v,r:2+Math.random()*2.5,life:1,max:1,col:'#ff5a3a',drag:.94})}}
+      c=mc;c.save();c.setTransform(DPR,0,0,DPR,0,0);c.globalCompositeOperation='lighter';
+      const rr=R*e;const grd=c.createRadialGradient(X,Y,rr*.6,X,Y,rr);grd.addColorStop(0,'rgba(120,200,255,0)');grd.addColorStop(.85,'rgba(120,200,255,.18)');grd.addColorStop(1,'rgba(200,240,255,.55)');c.globalAlpha=fade;c.fillStyle=grd;c.beginPath();c.arc(X,Y,rr,0,TAU);c.fill();
+      c.save();c.beginPath();c.arc(X,Y,rr,0,TAU);c.clip();const hs=34;for(let gy=-rr;gy<rr;gy+=hs*.87){for(let gx=-rr;gx<rr;gx+=hs*1.5){const ox=gx+((Math.round(gy/(hs*.87))%2)?hs*.75:0),px=X+ox,py=Y+gy;const d=Math.hypot(ox,gy)/rr;
+        let a=.08+.5*Math.pow(d,4);if(hitT>0){const w=Math.abs(Math.hypot(px-(X-R*.6),py-(Y-R*.2))-(T-hitT)*600);a+=Math.max(0,1-w/40)*.8*Math.max(0,1-(T-hitT)/1.2)}a+=.15*Math.max(0,Math.sin(now/200+ox*.05+gy*.04));
+        c.globalAlpha=a*fade;c.strokeStyle='#bfe6ff';c.lineWidth=1.4;c.beginPath();for(let k=0;k<6;k++){const an=k*TAU/6;const hx=px+Math.cos(an)*hs*.5,hy=py+Math.sin(an)*hs*.5;k?c.lineTo(hx,hy):c.moveTo(hx,hy)}c.closePath();c.stroke()}}c.restore();
+      c.globalAlpha=fade;c.strokeStyle='#e6f6ff';c.lineWidth=3;c.shadowColor='#7cc8ff';c.shadowBlur=20;c.beginPath();c.arc(X,Y,rr,0,TAU);c.stroke();c.restore()}});
+    // летящее заклятие, которое отражает щит
+    spellBolt({x1:dir?W*.98:W*.02,y1:H*.15,x2:X+(dir?R*.6:-R*.6),y2:Y-R*.2,col:'#ff3030',core:'#fff0e8',jag:.08,branches:1,width:.8,dur:1200,delay:0});});
+}
+
+return {incendio,lumos,leviosa,protego,patronus,phoenixFire,house,stop,drawAt,burst,SPECIES,wandCast,showName,castSpell};
 })();
