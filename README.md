@@ -13,3 +13,4 @@
 - Horse.glb, Parrot.glb — из примеров three.js (MIT), оригинальные модели проекта ro.me.
 - Fox.glb — модель PixelMannen (CC0), риг и анимация @tomkranis (CC BY 4.0), конвертация glTF: AsoboStudio и scurest. Источник: KhronosGroup/glTF-Sample-Assets.
 - Змея, единорог (рог), фестрал (крылья), свечение и частицы — собственный код.
+- MaraudersMap.glb — «The Marauder's Map [FREE, RIGGED]», автор Saandy (Sketchfab), CC BY 4.0.

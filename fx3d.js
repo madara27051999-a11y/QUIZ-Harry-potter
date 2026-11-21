@@ -442,6 +442,47 @@ function mermaid(){
     return t<T},dispose(){scene.remove(g)}});
 }
 
+// ---------- Карта Мародёров (модель Saandy, CC BY 4.0) в карточке вопроса ----------
+let mapGltf=null,mapLoading=null;
+function loadMap(){if(mapGltf)return Promise.resolve(mapGltf);if(!mapLoading)mapLoading=new Promise((res,rej)=>loader.load('models/MaraudersMap.glb?v=1',g=>{mapGltf=g;res(g)},undefined,rej));return mapLoading}
+async function mapInto(el){
+  const g=await loadMap();if(!el.isConnected)return;
+  const cv=document.createElement('canvas');cv.className='mapcv';el.appendChild(cv);
+  let r;try{r=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true})}catch(e){cv.remove();return}
+  r.setPixelRatio(Math.min(2,devicePixelRatio||1));r.setClearColor(0,0);r.toneMapping=THREE.ACESFilmicToneMapping;r.outputColorSpace=THREE.SRGBColorSpace;
+  const sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(30,1,.01,1000);
+  sc.add(new THREE.HemisphereLight(0xfff3dc,0x8a6a48,1.6));sc.add(new THREE.AmbientLight(0xfff0d8,.9));const camL=new THREE.DirectionalLight(0xfff2dc,1.6);sc.add(camL);const key=new THREE.DirectionalLight(0xffe6b8,2.2);key.position.set(2,5,4);sc.add(key);const warm=new THREE.PointLight(0xffb060,0,0);sc.add(warm);
+  try{const pm=new THREE.PMREMGenerator(r);sc.environment=pm.fromScene(new RoomEnvironment(),.04).texture}catch(e){}
+  const root=SkeletonUtils.clone(g.scene);root.traverse(o=>{if(o.isMesh){o.frustumCulled=false;if(o.material){o.material.side=THREE.DoubleSide;o.material.envMapIntensity=.4}}});sc.add(root);
+  const mixer=new THREE.AnimationMixer(root);const act=mixer.clipAction(g.animations[0]);act.setLoop(THREE.LoopOnce);act.clampWhenFinished=true;act.play();
+  // кадр по раскрытой карте
+  mixer.setTime(g.animations[0].duration-.01);root.updateMatrixWorld(true);const box=new THREE.Box3(),bv=new THREE.Vector3();
+  root.traverse(o=>{if(o.isSkinnedMesh){const p=o.geometry.attributes.position;for(let i=0;i<p.count;i+=7){bv.fromBufferAttribute(p,i);o.applyBoneTransform(i,bv);bv.applyMatrix4(o.matrixWorld);box.expandByPoint(bv)}}});
+  if(box.isEmpty())box.setFromObject(root);
+  mixer.setTime(0);root.updateMatrixWorld(true);const box0=new THREE.Box3();root.traverse(o=>{if(o.isSkinnedMesh){const p=o.geometry.attributes.position;for(let i=0;i<p.count;i+=7){bv.fromBufferAttribute(p,i);o.applyBoneTransform(i,bv);bv.applyMatrix4(o.matrixWorld);box0.expandByPoint(bv)}}});
+  const c0=box0.getCenter(new THREE.Vector3()),s0=box0.getSize(new THREE.Vector3());const ctr=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3());act.reset();act.play();mixer.setTime(0);
+  const rad=Math.max(size.x,size.y,size.z)*.55;
+  // искры-чернила
+  const N=160,pg=new THREE.BufferGeometry(),pp=new Float32Array(N*3),pl=[];for(let i=0;i<N;i++)pl.push({life:0});pg.setAttribute('position',new THREE.BufferAttribute(pp,3));
+  const pt=new THREE.Points(pg,new THREE.PointsMaterial({color:0xffd38a,size:rad*.025,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));sc.add(pt);
+  const clk=new THREE.Clock();let t=0;
+  const resize=()=>{const w=el.clientWidth||300,h=el.clientHeight||200;r.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix()};resize();
+  const ro=new ResizeObserver(resize);ro.observe(el);
+  const loop=()=>{if(!el.isConnected){ro.disconnect();r.dispose();return}
+    const dt=Math.min(.05,clk.getDelta());t+=dt;mixer.update(dt*.85);
+    const k=Math.min(1,t/5.5),e=1-Math.pow(1-k,3);
+    const hf=Math.atan(Math.tan(cam.fov*Math.PI/360)*cam.aspect);const fit=Math.max(size.x*.5/Math.tan(hf),size.z*.5/Math.tan(cam.fov*Math.PI/360));
+    const fit0=Math.max(s0.x*.5/Math.tan(hf),s0.z*.5/Math.tan(cam.fov*Math.PI/360))*2.2;const d=fit0+(fit*1.12-fit0)*e;const C=c0.clone().lerp(ctr,e);
+    const az=-.35+.35*e+Math.sin(t*.4)*.05*e,el_=1.35-.25*e;
+    cam.position.set(C.x+Math.sin(az)*Math.cos(el_)*d,C.y+Math.sin(el_)*d,C.z+Math.cos(az)*Math.cos(el_)*d);cam.lookAt(C);camL.position.copy(cam.position);
+    warm.intensity=k<1?0:0;
+    for(let i=0;i<N;i++){const p=pl[i];if(p.life<=0&&Math.random()<.05*e){p.life=1+Math.random();p.x=ctr.x+(Math.random()-.5)*size.x*.9;p.z=ctr.z+(Math.random()-.5)*size.z*.9;p.y=box.max.y*.6}
+      if(p.life>0){p.life-=dt;p.y+=dt*rad*.06}pp[i*3]=p.life>0?p.x:1e6;pp[i*3+1]=p.y||0;pp[i*3+2]=p.z||0}
+    pg.attributes.position.needsUpdate=true;
+    r.render(sc,cam);requestAnimationFrame(loop)};
+  el.classList.add('live');loop();
+}
+
 const API={ready:false,
   patronus(){if(!API.ready)return false;const keys=Object.keys(KINDS).filter(k=>k!==lastKind);const k=keys[Math.random()*keys.length|0];lastKind=k;const K=KINDS[k];
     const dir=Math.random()<.5,wx=dir?innerWidth*.08:innerWidth*.92,wy=innerHeight*.96;
@@ -454,6 +495,7 @@ const API={ready:false,
     if(r<.45&&typeof FX2!=='undefined'&&FX2.castSpell){const ks=['avada','expelliarmus','incendio','leviosa','protego'];FX2.castSpell(ks[Math.random()*ks.length|0]);return true}
     return API.patronus()},
   clear(){for(const e of effects)e.update=()=>false;for(const d of pData)d.life=0;document.querySelectorAll('.frost,.spellflash').forEach(x=>x.remove())},
+  mapInto(el){mapInto(el).catch(e=>console.warn('map',e))},
   snitch(){if(API.ready)snitch()},mermaid(){if(API.ready)mermaid()},dementor(){if(API.ready)dementor()},spell(k){if(typeof FX2!=='undefined'&&FX2.castSpell)FX2.castSpell(k||'avada')},
   creature(k){if(!API.ready)return false;creature(k,{x:innerWidth*.1,y:innerHeight*.7});return true},
   house(h,onDone){if(!API.ready)return null;const f={gryffindor:phoenixFinale,slytherin:snakeFinale,ravenclaw:eagleFinale,hufflepuff:badgerFinale}[h];if(!f)return null;const e=f();const d=e.dispose;e.dispose=()=>{d&&d();onDone&&onDone()};return e},
