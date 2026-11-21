@@ -2,6 +2,8 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import {mergeVertices} from 'three/addons/utils/BufferGeometryUtils.js';
+import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 
 const TAU=Math.PI*2,rnd=(a,b)=>a+Math.random()*(b-a),clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const easeIO=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2,easeO=t=>1-Math.pow(1-t,3);
@@ -11,9 +13,10 @@ let renderer,scene,camera,canvas,clock,running=false,effects=[],ok=false,models=
 function init(){
   canvas=document.createElement('canvas');canvas.className='fx3d';document.body.appendChild(canvas);
   try{renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,premultipliedAlpha:true,powerPreference:'high-performance'})}catch(e){canvas.remove();return false}
-  renderer.setPixelRatio(Math.min(1.5,devicePixelRatio||1));renderer.setClearColor(0x000000,0);renderer.toneMapping=THREE.ACESFilmicToneMapping;
+  renderer.setPixelRatio(Math.min(1.75,devicePixelRatio||1));renderer.setClearColor(0x000000,0);renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(38,1,.1,400);camera.position.set(0,2,16);camera.lookAt(0,1.4,0);
-  scene.add(new THREE.AmbientLight(0xffffff,.35));const dl=new THREE.DirectionalLight(0xffffff,1.6);dl.position.set(4,8,6);scene.add(dl);scene.userData.dl=dl;
+  try{const pm=new THREE.PMREMGenerator(renderer);scene.environment=pm.fromScene(new RoomEnvironment(),.04).texture}catch(e){}
+  scene.add(new THREE.AmbientLight(0xffffff,.25));const dl=new THREE.DirectionalLight(0xffffff,1.4);dl.position.set(4,8,6);scene.add(dl);
   clock=new THREE.Clock();resize();addEventListener('resize',resize);
   initParticles();return true;
 }
@@ -22,13 +25,15 @@ function setMode(m,glow){mode=m;canvas.classList.toggle('finale',m==='finale');c
 
 /* ---------- материалы ---------- */
 function ghostMat(col,o={}){
-  const m=new THREE.MeshStandardMaterial({color:0x000000,emissive:new THREE.Color(col),emissiveIntensity:o.ei||1.4,transparent:true,opacity:o.op??.92,depthWrite:o.dw??true,side:THREE.DoubleSide,vertexColors:false,roughness:1,metalness:0});
-  const rim=new THREE.Color(o.rim||'#ffffff');
-  m.onBeforeCompile=sh=>{sh.uniforms.uRim={value:rim};sh.uniforms.uCore={value:o.core??.35};sh.uniforms.uPow={value:o.pow??1.8};
-    sh.fragmentShader='uniform vec3 uRim;uniform float uCore;uniform float uPow;\n'+sh.fragmentShader.replace('#include <emissivemap_fragment>',
+  const m=new THREE.MeshStandardMaterial({color:0x000000,emissive:new THREE.Color(col),emissiveIntensity:o.ei||1.4,transparent:true,opacity:o.op??.9,depthWrite:true,side:THREE.FrontSide,roughness:1,metalness:0,envMapIntensity:0});
+  const rim=new THREE.Color(o.rim||'#ffffff');m.userData.u={uT:{value:0}};
+  m.onBeforeCompile=sh=>{sh.uniforms.uRim={value:rim};sh.uniforms.uCore={value:o.core??.32};sh.uniforms.uPow={value:o.pow??1.7};sh.uniforms.uT=m.userData.u.uT;
+    sh.vertexShader='varying vec3 vOP;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvOP=position;');
+    sh.fragmentShader='uniform vec3 uRim;uniform float uCore;uniform float uPow;uniform float uT;varying vec3 vOP;\n'+sh.fragmentShader.replace('#include <emissivemap_fragment>',
     `#include <emissivemap_fragment>
      float fr=pow(1.0-abs(dot(normalize(vViewPosition),normal)),uPow);
-     totalEmissiveRadiance=mix(totalEmissiveRadiance*uCore,uRim*1.6,fr)+totalEmissiveRadiance*fr*.6;`);};
+     float flow=.75+.25*sin(vOP.y*.06+vOP.z*.025-uT*5.0)+.15*sin(vOP.x*.2+uT*3.0);
+     totalEmissiveRadiance=mix(totalEmissiveRadiance*uCore*flow,uRim*1.7,fr)+totalEmissiveRadiance*fr*.5;`);};
   return m;
 }
 function fireMat(){
@@ -69,7 +74,18 @@ function anyParticles(){for(const d of pData)if(d.life>0)return true;return fals
 /* ---------- модели ---------- */
 const loader=new GLTFLoader();
 function load(name){return new Promise((res,rej)=>loader.load('models/'+name+'.glb',g=>res(g),undefined,rej))}
-async function preload(){const [h,p,f]=await Promise.all([load('Horse'),load('Parrot'),load('Fox')]);models={Horse:h,Parrot:p,Fox:f};for(const g of[h,p,f])g.scene.traverse(o=>{if(o.isMesh&&!o.geometry.attributes.normal)o.geometry.computeVertexNormals()})}
+async function preload(){const [h,p,f]=await Promise.all([load('Horse'),load('Parrot'),load('Fox')]);models={Horse:h,Parrot:p,Fox:f};
+  for(const g of[h,p,f])g.scene.traverse(o=>{if(!o.isMesh)return;let geo=o.geometry;['uv','color','normal'].forEach(a=>geo.deleteAttribute(a));
+    try{geo=mergeVertices(geo,1e-3)}catch(e){}geo.computeVertexNormals();o.geometry=geo});
+  // ключевые точки лошади: кончик носа, уши, холка
+  const hm=[];h.scene.traverse(o=>{if(o.isMesh)hm.push(o)});const m=hm[0],P=m.geometry.attributes.position;
+  let ear=0,nose=0,wither=0,by=-1e9,bz=-1e9,bw=-1e9;
+  for(let i=0;i<P.count;i++){const x=P.getX(i),y=P.getY(i),z=P.getZ(i);if(y>by){by=y;ear=i}}
+  const ey=P.getY(ear);
+  for(let i=0;i<P.count;i++){const y=P.getY(i),z=P.getZ(i);if(y>ey-70&&y<ey-20&&z>bz&&Math.abs(P.getX(i))<12){bz=z;nose=i}}
+  for(let i=0;i<P.count;i++){const y=P.getY(i),z=P.getZ(i),x=P.getX(i);const s=y-Math.abs(z-25)*1.2-Math.abs(x)*2;if(z<70&&z>-40&&s>bw){bw=s;wither=i}}
+  models.horseKeys={ear,nose,wither};
+}
 function instance(name,mat,len){
   const g=models[name];const root=name==='Fox'?SkeletonUtils.clone(g.scene):g.scene.clone(true);
   const meshes=[];root.traverse(o=>{if(o.isMesh){o.material=mat;o.frustumCulled=false;meshes.push(o)}});
@@ -99,38 +115,59 @@ function tick(){
 }
 function screenToWorld(x,y,z=0){const v=new THREE.Vector3(x/innerWidth*2-1,-(y/innerHeight)*2+1,.5).unproject(camera);const d=v.sub(camera.position).normalize();const t=(z-camera.position.z)/d.z;return camera.position.clone().addScaledVector(d,t)}
 
-// Патронус / существо бежит из вихря у кончика палочки через весь экран
+// крылья из перьев (Абраксан, Пегас) и перепончатые (Фестрал)
+function featherWing(col,rim,len){
+  const g=new THREE.Group(),inner=new THREE.Group(),outer=new THREE.Group();g.add(inner);inner.add(outer);outer.position.x=len*.45;
+  const fs=new THREE.Shape();fs.moveTo(0,-.5);fs.quadraticCurveTo(.5,-.55,1,0);fs.quadraticCurveTo(.5,.55,0,.5);fs.lineTo(0,-.5);const fg=new THREE.ShapeGeometry(fs,8);
+  const mat=ghostMat(col,{rim,core:.5,pow:1.3});mat.side=THREE.DoubleSide;
+  for(let i=0;i<9;i++){const f=new THREE.Mesh(fg,mat);const L=len*(.35+i*.02),W=len*.07;f.scale.set(L,W,1);f.rotation.x=Math.PI/2;f.rotation.z=-.15-i*.11;f.position.set(len*.05*i,0,-len*.02*i);inner.add(f)}
+  for(let i=0;i<10;i++){const f=new THREE.Mesh(fg,mat);const L=len*(.55-i*.025),W=len*.06;f.scale.set(L,W,1);f.rotation.x=Math.PI/2;f.rotation.z=.25-i*.13;f.position.set(len*.04*i,0,-len*.01*i);outer.add(f)}
+  return {g,inner,outer,mat};
+}
+function batWing(len){
+  const g=new THREE.Group(),inner=new THREE.Group(),outer=new THREE.Group();g.add(inner);inner.add(outer);outer.position.x=len*.42;
+  const mem=ghostMat('#0b1218',{rim:'#a8fff0',core:.15,pow:1});mem.side=THREE.DoubleSide;mem.opacity=.85;
+  const L=len;const s1=new THREE.Shape();s1.moveTo(0,.04*L);s1.lineTo(L*.43,.08*L);s1.lineTo(L*.43,-.36*L);s1.quadraticCurveTo(L*.3,-.3*L,L*.2,-.42*L);s1.quadraticCurveTo(L*.1,-.32*L,0,-.38*L);s1.lineTo(0,.04*L);
+  const s2=new THREE.Shape();s2.moveTo(-.01*L,.08*L);s2.quadraticCurveTo(L*.3,.16*L,L*.6,.02*L);s2.quadraticCurveTo(L*.47,-.06*L,L*.5,-.16*L);s2.quadraticCurveTo(L*.36,-.14*L,L*.36,-.3*L);s2.quadraticCurveTo(L*.22,-.22*L,L*.18,-.4*L);s2.quadraticCurveTo(L*.08,-.3*L,-.01*L,-.36*L);s2.lineTo(-.01*L,.08*L);
+  const m1=new THREE.Mesh(new THREE.ShapeGeometry(s1,12),mem),m2=new THREE.Mesh(new THREE.ShapeGeometry(s2,16),mem);m1.rotation.x=m2.rotation.x=Math.PI/2;inner.add(m1);outer.add(m2);
+  const bone=new THREE.MeshBasicMaterial({color:0x9ffff0,transparent:true,opacity:.55});
+  [[0,.06,.43,.08],[.43,.08,1.03,.1],[.43,.08,.93,-.08],[.43,.08,.79,-.3],[.43,.08,.6,-.4]].forEach(([x1,z1,x2,z2],k)=>{const a=new THREE.Vector3(x1*L,0,z1*L),b=new THREE.Vector3(x2*L,0,z2*L);const c=new THREE.Mesh(new THREE.CylinderGeometry(.006*L,.004*L,a.distanceTo(b),6),bone);c.position.copy(a).lerp(b,.5);c.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),b.clone().sub(a).normalize());if(k===0)inner.add(c);else{c.position.x-=.42*L;outer.add(c)}});
+  return {g,inner,outer,mat:mem};
+}
 const KINDS={
-  horse:{n:'Лошадь',model:'Horse',len:8.5,col:'#9fd8ff',rim:'#f2fbff',clip:null,ts:1.1},
-  unicorn:{n:'Единорог',model:'Horse',len:8.2,col:'#e9f2ff',rim:'#fff7d6',ts:1.05,horn:true},
-  thestral:{n:'Фестрал',model:'Horse',len:8.6,col:'#1c2a3a',rim:'#b8fff4',ts:.9,wings:true,core:.15,pow:1.2},
+  horse:{n:'Лошадь',model:'Horse',len:8.5,col:'#9fd8ff',rim:'#f2fbff',ts:1.1},
+  unicorn:{n:'Единорог',model:'Horse',len:8.2,col:'#eef4ff',rim:'#fff3c8',ts:1.05,horn:true},
+  thestral:{n:'Фестрал',model:'Horse',len:8.6,col:'#16222e',rim:'#b8fff4',ts:.85,wings:'bat',core:.12,pow:1.1,fly:true},
+  abraxan:{n:'Абраксанский крылатый конь',model:'Horse',len:9,col:'#ffd98a',rim:'#fff6dc',ts:.8,wings:'feather',fly:true},
   fox:{n:'Лиса',model:'Fox',len:6.4,col:'#a8dcff',rim:'#f0fbff',clip:'Run',ts:1},
-  phoenix:{n:'Феникс',model:'Parrot',len:7.5,fire:true,ts:.8,fly:true},
+  phoenix:{n:'Феникс',model:'Parrot',len:7.5,fire:true,ts:.8,bird:true},
 };
 let lastKind='';
 function creature(kindKey,from){
   const K=KINDS[kindKey];const mat=K.fire?fireMat():ghostMat(K.col,{rim:K.rim,core:K.core,pow:K.pow});
   const I=instance(K.model,mat,K.len);I.play(K.clip,K.ts);scene.add(I.pivot);
   const dir=from.x<innerWidth/2?1:-1;
-  const start=screenToWorld(from.x,from.y,0),endX=dir*20,z0=0,z1=-4,y0=K.fly?.8:-1.6;
-  const extras=[];
-  if(K.horn){const m=I.meshes[0];const p=m.geometry.attributes.position;let zmax=-1e9;for(let i=0;i<p.count;i++)zmax=Math.max(zmax,p.getZ(i));const vi=pickVertex(m,(x,y,z)=>z);const ve=pickVertex(m,(x,y,z)=>z>zmax-70?y:-1e9);const horn=new THREE.Mesh(new THREE.ConeGeometry(.09/I.scale*1,1.1/I.scale,24),ghostMat('#ffe9a8',{rim:'#ffffff',core:.8}));horn.userData.vi=vi;horn.userData.ve=ve;m.add(horn);extras.push(horn)}
-  if(K.wings){const m=I.meshes[0];const vi=pickVertex(m,(x,y,z)=>y*1.2-Math.abs(z-20)*.8);const sh=new THREE.Shape();sh.moveTo(0,0);sh.bezierCurveTo(30,60,90,90,160,70);sh.quadraticCurveTo(140,40,150,10);sh.quadraticCurveTo(120,20,110,-10);sh.quadraticCurveTo(85,5,70,-25);sh.quadraticCurveTo(50,-5,0,0);
-    const wg=new THREE.ShapeGeometry(sh,24);const wm=ghostMat('#0e1820',{rim:'#b8fff4',core:.1,pow:1});for(const sgn of[1,-1]){const w=new THREE.Mesh(wg,wm);w.userData={vi,sgn};w.scale.set(sgn,1,1);m.add(w);extras.push(w)}}
-  const v=new THREE.Vector3(),T=5.2;let t=0;
-  return addEffect({update(dt){t+=dt;I.mixer.update(dt);if(mat.userData.sh)mat.userData.sh.uniforms.uT.value=t;
+  const start=screenToWorld(from.x,from.y,0),endX=dir*20,z0=0,z1=-4,y0=K.bird?.8:K.fly?1.2:-1.6;
+  const keys=models.horseKeys,m=I.meshes[0],extras={};const v=new THREE.Vector3(),v2=new THREE.Vector3(),v3=new THREE.Vector3(),UP=new THREE.Vector3(0,1,0);
+  if(K.horn){const hm=ghostMat('#ffe7a0',{rim:'#ffffff',core:.9,pow:1.2});const hg=new THREE.ConeGeometry(.07,1,24,1);hg.translate(0,.5,0);
+    const pos=hg.attributes.position;for(let i=0;i<pos.count;i++){const y=pos.getY(i),a=Math.atan2(pos.getZ(i),pos.getX(i));const r=Math.hypot(pos.getX(i),pos.getZ(i))*(1+.25*Math.sin(a*2+y*40));pos.setX(i,Math.cos(a)*r);pos.setZ(i,Math.sin(a)*r)}hg.computeVertexNormals();
+    extras.horn=new THREE.Mesh(hg,hm);extras.horn.scale.setScalar(.85/I.scale);m.add(extras.horn);extras.hm=hm}
+  if(K.wings){for(const s of[1,-1]){const w=K.wings==='bat'?batWing(190):featherWing(K.col,K.rim,190);w.g.scale.set(s,1,1);m.add(w.g);(extras.wings=extras.wings||[]).push({...w,s})}}
+  const T=K.fly?6:5.2;let t=0;
+  return addEffect({update(dt){t+=dt;I.mixer.update(dt*(K.fly?.85:1));mat.userData.u&&(mat.userData.u.uT.value=t);if(mat.userData.sh)mat.userData.sh.uniforms.uT.value=t;
     const k=clamp(t/T,0,1),grow=easeO(clamp(t/.9,0,1));
-    const x=start.x+(endX-start.x)*easeIO(k),z=z0+(z1-z0)*k,y=start.y+(y0-start.y)*easeO(clamp(t/1.1,0,1))+(K.fly?Math.sin(t*2.2)*.5:0);
-    I.pivot.position.set(x,y,z);I.pivot.rotation.y=dir>0?Math.PI/2:-Math.PI/2;if(K.fly)I.pivot.rotation.z=Math.sin(t*2.2)*.12*dir;
+    const x=start.x+(endX-start.x)*easeIO(k),z=z0+(z1-z0)*k,y=start.y+(y0-start.y)*easeO(clamp(t/1.1,0,1))+(K.bird||K.fly?Math.sin(t*2.2)*.5:0);
+    I.pivot.position.set(x,y,z);I.pivot.rotation.y=dir>0?Math.PI/2:-Math.PI/2;if(K.bird||K.fly){I.pivot.rotation.z=Math.sin(t*2.2)*.08*dir;I.pivot.rotation.x=K.fly?-.08:0}
     I.pivot.scale.setScalar(.08+.92*grow);
-    const fade=k<.06?k/.06:k>.88?(1-k)/.12:1;mat.opacity=(K.fire?1:.92)*fade;
-    const v2=new THREE.Vector3();for(const e of extras){const m=e.parent;morphVertex(m,e.userData.vi,v);if(e.userData.ve!=null){morphVertex(m,e.userData.ve,v2);v.lerp(v2,.62)}e.position.copy(v);
-      if(e.userData.sgn){e.rotation.set(0,0,0);e.rotation.y=e.userData.sgn*1.2+Math.sin(t*6)*.5*e.userData.sgn;e.rotation.x=-.3}else{e.rotation.set(.75,0,0);e.position.y+=.32/I.scale;e.position.z+=.12/I.scale}}
-    // искры
+    const fade=k<.06?k/.06:k>.88?(1-k)/.12:1;mat.opacity=(K.fire?1:.9)*fade;if(extras.hm)extras.hm.opacity=fade;
+    if(extras.horn){morphVertex(m,keys.ear,v);morphVertex(m,keys.nose,v2);v3.subVectors(v2,v).normalize();
+      extras.horn.position.copy(v).lerp(v2,.3);extras.horn.position.y+=3;const d=v3.clone().multiplyScalar(1.5).add(UP.clone().multiplyScalar(.75)).normalize();extras.horn.quaternion.setFromUnitVectors(UP,d)}
+    if(extras.wings){morphVertex(m,keys.wither,v);const fl=Math.sin(t*(K.wings==='bat'?5:4.2));
+      for(const w of extras.wings){w.g.position.copy(v);w.g.position.y+=4;w.g.position.x+=w.s*6;w.inner.rotation.set(0,0,.55+fl*.85);w.outer.rotation.set(0,0,.25+Math.sin(t*(K.wings==='bat'?5:4.2)-.7)*.6);w.g.rotation.y=0;w.mat.opacity=fade;w.mat.userData.u.uT.value=t}}
     const n=K.fire?14:6;for(let i=0;i<n;i++){randomVertexWorld(I,v);
       if(K.fire)emit(v,new THREE.Vector3(-dir*rnd(.5,2),rnd(.5,2.4),rnd(-.5,.5)),Math.random()<.4?'#fff1b0':'#ff8a2a',rnd(.25,.6),rnd(.6,1.4),{c2:'#ff2a0a',g:.6});
-      else emit(v,new THREE.Vector3(-dir*rnd(.3,1.4),rnd(-.2,.6),rnd(-.4,.4)),K.horn&&Math.random()<.3?'#ffe9a8':K.wings?'#9ffff0':'#cfefff',rnd(.12,.3),rnd(.8,1.8))}
-    if(K.horn&&extras[0]){extras[0].getWorldPosition(v);for(let i=0;i<3;i++)emit(v,new THREE.Vector3(rnd(-.6,.6),rnd(-.2,.8),rnd(-.6,.6)),'#fff2c0',rnd(.15,.35),rnd(.5,1))}
+      else emit(v,new THREE.Vector3(-dir*rnd(.3,1.4),rnd(-.2,.6),rnd(-.4,.4)),K.horn&&Math.random()<.25?'#ffe9a8':K.wings==='bat'?'#9ffff0':kindKey==='abraxan'?'#ffe7a8':'#cfefff',rnd(.12,.3),rnd(.8,1.8))}
+    if(extras.horn){extras.horn.getWorldPosition(v);v.add(new THREE.Vector3(0,.5,0));for(let i=0;i<3;i++)emit(v,new THREE.Vector3(rnd(-.5,.5),rnd(0,.8),rnd(-.5,.5)),'#fff2c0',rnd(.15,.35),rnd(.5,1))}
     return t<T},dispose(){scene.remove(I.pivot)}});
 }
 // вихрь появления у кончика палочки
@@ -142,63 +179,105 @@ function bgFor(col){canvas.style.setProperty('--g1',col)}
 function camShake(t,amp){camera.position.x=Math.sin(t*53)*amp;camera.position.y=2+Math.cos(t*47)*amp}
 function resetCam(){camera.position.set(0,2,16);camera.lookAt(0,1.4,0);camera.fov=38;camera.updateProjectionMatrix();scene.fog=null}
 
-// Слизерин: огромная змея выползает из темноты, встаёт и бросается на зрителя
+// Слизерин: огромная змея выползает из темноты, встаёт как кобра и бросается на зрителя
+function scaleTextures(){
+  const W=512,H=256,c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
+  const hgt=new Float32Array(W*H);const rows=8,cols=16;
+  for(let r=0;r<=rows;r++)for(let k=0;k<=cols;k++){const cx=(k+(r%2)*.5)/cols*W,cy=r/rows*H,rx=W/cols*.62,ry=H/rows*.78;
+    for(let y=Math.floor(cy-ry);y<cy+ry;y++)for(let x=Math.floor(cx-rx);x<cx+rx;x++){const dx=(x-cx)/rx,dy=(y-cy)/ry;const d=dx*dx+dy*dy;if(d>=1)continue;const X=((x%W)+W)%W,Y=((y%H)+H)%H;const v=(1-d)*(1-.3*Math.max(0,-dy));hgt[Y*W+X]=Math.max(hgt[Y*W+X],v)}}
+  const img=g.createImageData(W,H);for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x;const l=hgt[y*W+((x-1+W)%W)],r_=hgt[y*W+((x+1)%W)],u=hgt[((y-1+H)%H)*W+x],d=hgt[((y+1)%H)*W+x];
+    let nx=(l-r_)*3.5,ny=(u-d)*3.5,nz=1;const n=Math.hypot(nx,ny,nz);img.data[i*4]=(nx/n*.5+.5)*255;img.data[i*4+1]=(ny/n*.5+.5)*255;img.data[i*4+2]=(nz/n*.5+.5)*255;img.data[i*4+3]=255}
+  g.putImageData(img,0,0);const nt=new THREE.CanvasTexture(c);nt.wrapS=nt.wrapT=THREE.RepeatWrapping;
+  const c2=document.createElement('canvas');c2.width=W;c2.height=H;const g2=c2.getContext('2d');const im2=g2.createImageData(W,H);
+  for(let i=0;i<W*H;i++){const v=hgt[i];const e=v<.12?0:1;im2.data[i*4]=im2.data[i*4+1]=im2.data[i*4+2]=Math.round((.35+.65*Math.min(1,v*1.6))*255*e+20*(1-e));im2.data[i*4+3]=255}
+  g2.putImageData(im2,0,0);const at=new THREE.CanvasTexture(c2);at.wrapS=at.wrapT=THREE.RepeatWrapping;
+  return {nt,at};
+}
+let SCALES=null;
 function snakeFinale(){
-  setMode('finale');bgFor('rgba(80,255,150,.55)');
-  const SEG=220,RAD=24,L=48,HEAD=.05;const geo=new THREE.BufferGeometry();const pos=new Float32Array((SEG+1)*(RAD+1)*3),uv=new Float32Array((SEG+1)*(RAD+1)*2),idx=[];
+  setMode('finale');bgFor('rgba(70,255,140,.22)');if(!SCALES)SCALES=scaleTextures();
+  const SEG=420,RAD=36,L=58,HEAD=.055;
+  const geo=new THREE.BufferGeometry();const pos=new Float32Array((SEG+1)*(RAD+1)*3),uv=new Float32Array((SEG+1)*(RAD+1)*2),idx=[];
   for(let i=0;i<SEG;i++)for(let j=0;j<RAD;j++){const a=i*(RAD+1)+j,b=a+RAD+1;idx.push(a,a+1,b,b,a+1,b+1)}
-  for(let i=0;i<=SEG;i++)for(let j=0;j<=RAD;j++){uv[(i*(RAD+1)+j)*2]=i/SEG*36;uv[(i*(RAD+1)+j)*2+1]=j/RAD}
+  for(let i=0;i<=SEG;i++)for(let j=0;j<=RAD;j++){uv[(i*(RAD+1)+j)*2]=i/SEG*L*3.2;uv[(i*(RAD+1)+j)*2+1]=j/RAD*4}
   geo.setIndex(idx);geo.setAttribute('position',new THREE.BufferAttribute(pos,3));geo.setAttribute('uv',new THREE.BufferAttribute(uv,2));
-  const mat=new THREE.MeshStandardMaterial({color:0x2a7a45,roughness:.32,metalness:.3,emissive:0x041a0c,side:THREE.DoubleSide});
-  mat.onBeforeCompile=sh=>{sh.vertexShader='varying vec2 vUv2;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvUv2=uv;');
-    sh.fragmentShader='varying vec2 vUv2;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
-    vec2 q=vec2(vUv2.x*1.0,vUv2.y*14.0);q.x+=mod(floor(q.y),2.0)*.5;vec2 f=fract(q)-.5;float sc=smoothstep(.55,.15,length(f*vec2(1.0,1.25)));
-    float belly=smoothstep(.17,.02,abs(vUv2.y-.75));diffuseColor.rgb=mix(diffuseColor.rgb*.35,diffuseColor.rgb*1.3,sc);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.78,.74,.42),belly*.75);
-    float dia=smoothstep(.15,.0,abs(fract(vUv2.x*.5+abs(vUv2.y-.25)*1.5)-.5))*smoothstep(.3,.0,abs(vUv2.y-.25));diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.05,.12,.06),dia*.8);
-    if(!gl_FrontFacing)diffuseColor.rgb=vec3(.55,.06,.1);`).replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
-    float fr=pow(1.0-abs(dot(normalize(vViewPosition),normal)),2.2);totalEmissiveRadiance+=vec3(.25,1.0,.5)*fr*1.1;if(!gl_FrontFacing)totalEmissiveRadiance+=vec3(.25,.0,.02);`)};
-  const body=new THREE.Mesh(geo,mat);body.frustumCulled=false;scene.add(body);
-  const eyeM=new THREE.MeshBasicMaterial({color:0xffd23a}),pupM=new THREE.MeshBasicMaterial({color:0x000000});
-  const eyes=[1,-1].map(s=>{const g=new THREE.Group();const e=new THREE.Mesh(new THREE.SphereGeometry(.2,20,14),eyeM);const p=new THREE.Mesh(new THREE.SphereGeometry(.2,12,10),pupM);p.scale.set(.2,.9,.5);p.position.z=.1;g.add(e,p);scene.add(g);return g});
-  const fangM=new THREE.MeshStandardMaterial({color:0xf4f1e6,roughness:.3,emissive:0x333333});
-  const fangs=[1,-1].map(s=>{const m=new THREE.Mesh(new THREE.ConeGeometry(.09,.7,12),fangM);scene.add(m);return m});
-  const tongue=new THREE.Mesh(new THREE.CylinderGeometry(.035,.015,1.3,8),new THREE.MeshBasicMaterial({color:0xd2203a}));scene.add(tongue);
-  const keyL=new THREE.PointLight(0x7dffb0,60,40);scene.add(keyL);
+  const mat=new THREE.MeshPhysicalMaterial({color:0x2f7a3e,roughness:.38,metalness:.05,clearcoat:.8,clearcoatRoughness:.25,sheen:.4,sheenColor:new THREE.Color(0x7dffa8),normalMap:SCALES.nt,normalScale:new THREE.Vector2(1.1,1.1),aoMap:null,side:THREE.DoubleSide,envMapIntensity:.55});
+  mat.onBeforeCompile=sh=>{sh.uniforms.tScale={value:SCALES.at};
+    sh.vertexShader='varying vec2 vU;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvU=uv;');
+    sh.fragmentShader='uniform sampler2D tScale;varying vec2 vU;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+      float s=texture2D(tScale,vU).r;float ring=fract(vU.y*.25);float belly=smoothstep(.16,.03,abs(ring-.75));
+      float dorsal=smoothstep(.22,.0,abs(ring-.25));float dia=smoothstep(.32,.18,abs(fract(vU.x*.09+abs(ring-.25)*2.2)-.5))*dorsal;
+      vec3 base=mix(vec3(.04,.14,.06),vec3(.09,.28,.11),dorsal*.7);base=mix(base,vec3(.01,.04,.02),dia*.9);base=mix(base,vec3(.55,.5,.28),belly);
+      diffuseColor.rgb=base*(.45+.75*s);
+      if(!gl_FrontFacing)diffuseColor.rgb=vec3(.62,.12,.16);`).replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
+      float fr=pow(1.0-abs(dot(normalize(vViewPosition),normal)),2.5);totalEmissiveRadiance+=vec3(.15,.7,.35)*fr*.3;`)};
+  const body=new THREE.Mesh(geo,mat);body.frustumCulled=false;body.castShadow=true;scene.add(body);
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.ShadowMaterial({opacity:.55}));ground.rotation.x=-Math.PI/2;ground.position.y=-2.55;ground.receiveShadow=true;scene.add(ground);
+  const key=new THREE.DirectionalLight(0xfff3d6,2.2);key.position.set(6,14,10);key.castShadow=true;key.shadow.mapSize.set(2048,2048);Object.assign(key.shadow.camera,{left:-20,right:20,top:20,bottom:-20,near:1,far:60});scene.add(key);
+  const rim=new THREE.DirectionalLight(0x6dff9e,2.6);rim.position.set(-8,6,-14);scene.add(rim);const hemi=new THREE.HemisphereLight(0x9fffc0,0x0a1a10,.6);scene.add(hemi);
+  // глаза
+  const eyeM=new THREE.MeshPhysicalMaterial({color:0xe8b020,emissive:0x5a3a00,roughness:.1,clearcoat:1,clearcoatRoughness:.02});
+  const pupM=new THREE.MeshBasicMaterial({color:0x050505});
+  const eyes=[0,1].map(()=>{const gg=new THREE.Group();const e=new THREE.Mesh(new THREE.SphereGeometry(.17,32,20),eyeM);const p=new THREE.Mesh(new THREE.SphereGeometry(.17,16,12),pupM);p.scale.set(.16,.85,.55);p.position.z=.07;gg.add(e,p);scene.add(gg);return gg});
+  // клыки (изогнутые)
+  const fangCurve=new THREE.QuadraticBezierCurve3(new THREE.Vector3(0,0,0),new THREE.Vector3(0,-.25,.12),new THREE.Vector3(0,-.55,-.02));
+  const fg=new THREE.TubeGeometry(fangCurve,12,.05,10,false);const fp=fg.attributes.position;for(let i=0;i<fp.count;i++){}
+  const fangM=new THREE.MeshPhysicalMaterial({color:0xf6f1e2,roughness:.25,clearcoat:.6});
+  const fangs=[0,1].map(()=>{const m=new THREE.Mesh(new THREE.ConeGeometry(.075,.62,14),fangM);scene.add(m);return m});
+  const tongueM=new THREE.MeshStandardMaterial({color:0xb81830,roughness:.4});
+  const tongue=new THREE.Group();const t1=new THREE.Mesh(new THREE.CylinderGeometry(.016,.014,.7,8),tongueM);t1.position.y=.35;tongue.add(t1);
+  [-1,1].forEach(s=>{const f=new THREE.Mesh(new THREE.CylinderGeometry(.013,.004,.25,6),tongueM);f.position.set(s*.04,.8,0);f.rotation.z=-s*.35;tongue.add(f)});scene.add(tongue);
   const Q=new THREE.Vector3(),N=new THREE.Vector3(),B=new THREE.Vector3(),UP=new THREE.Vector3(0,1,0),tmp=new THREE.Vector3(),hinge=new THREE.Vector3(),rot=new THREE.Quaternion();
-  let t=0;const T=7.6,CAM=new THREE.Vector3(0,1.1,9);
-  const headPath=s=>{const p=new THREE.Vector3();const e=easeO(clamp(s/3.6,0,1));
-    p.set(Math.sin(s*1.9)*4.6*(1-e*.8),-1.7+e*.2,-36+e*31);
-    const rear=easeO(clamp((s-3.4)/1.1,0,1));p.y+=rear*2.4;p.x*=1-rear*.9;
-    const lunge=easeIO(clamp((s-5.1)/.42,0,1));const tgt=new THREE.Vector3(0,.6,4.4);p.lerp(tgt,lunge);return p};
-  const spine=[];
+  let t=0;const T=8.2;
+  const strikeAt=5.3;
+  const headPath=s=>{const p=new THREE.Vector3();const e=easeO(clamp(s/4,0,1));
+    p.set(Math.sin(s*1.7)*5.5*(1-e*.85),-2.15+e*.1,-42+e*36);
+    const rear=easeIO(clamp((s-3.7)/1.2,0,1));p.y+=rear*2.6;p.x*=1-rear*.95;p.z+=rear*.5;
+    const sway=Math.sin(s*2.4)*.35*rear*(1-clamp((s-strikeAt)/.2,0,1));p.x+=sway;
+    const st=clamp((s-strikeAt)/.32,0,1),back=clamp((s-6.9)/.8,0,1);const tgt=new THREE.Vector3(-.6,.5,3.6);p.lerp(tgt,easeIO(st)*(1-easeIO(back)*.55));return p};
+  const spine=[];let lastHp=null;
+  const prof=(u)=>{if(u<HEAD){const h=u/HEAD;const tip=Math.max(.03,Math.pow(Math.sin(Math.min(1,h/.38)*Math.PI*.5),.75));let rx=(.3+Math.sin(Math.min(1,h*1.35)*Math.PI*.5)*1.05)*tip,ry=(.2+Math.sin(Math.min(1,h*1.5)*Math.PI*.5)*.48)*tip;if(h>.78){const k=(h-.78)/.22;rx=rx*(1-k)+.78*k;ry=ry*(1-k)+.7*k}return [rx,ry]}
+    if(u<.2){const k=(u-HEAD)/(.2-HEAD);return [.78+.32*Math.sin(k*Math.PI*.5),.7+.22*Math.sin(k*Math.PI*.5)]}
+    if(u>.72){const k=(1-u)/.28;return [.06+1.04*Math.pow(k,.8),.05+.87*Math.pow(k,.8)]}return [1.1,.92]};
   return addEffect({update(dt){t+=dt;
-    const hp=headPath(t);spine.unshift(hp.clone());if(spine.length>3000)spine.pop();
-    const pts=[hp];let acc=0;const step=L/SEG;
-    for(let i=1;i<spine.length&&pts.length<=SEG;i++){acc+=spine[i].distanceTo(spine[i-1]);while(acc>=step&&pts.length<=SEG){pts.push(spine[i].clone());acc-=step}}
-    while(pts.length<=SEG){const l=pts[pts.length-1].clone();l.z-=step;l.x+=Math.sin(pts.length*.1+t*3)*.18;l.y=-1.7;pts.push(l)}
-    const open=clamp((t-4.7)/.5,0,1)*(t>6.8?clamp((7.3-t)/.4,0,1):1);
-    // шарнир челюсти
-    const hi=Math.round(HEAD*SEG*.7);hinge.copy(pts[hi]);
-    for(let i=0;i<=SEG;i++){const p=pts[i],pn=pts[Math.min(SEG,i+1)],pp=pts[Math.max(0,i-1)];Q.subVectors(pp,pn).normalize();N.crossVectors(Q,UP).normalize();B.crossVectors(N,Q).normalize();
-      const u=i/SEG;let rx,ry;
-      if(u<HEAD){const h=u/HEAD;rx=.35+Math.sin(Math.min(1,h*1.25)*Math.PI*.5)*1.05;ry=.28+Math.sin(Math.min(1,h*1.4)*Math.PI*.5)*.5;if(h>.75){const k=(h-.75)/.25;rx=rx*(1-k)+.95*k;ry=ry*(1-k)+.8*k}}
-      else if(u>.78){const k=(1-u)/.22;rx=.06+.89*k;ry=.06+.74*k}else{rx=.95;ry=.8}
-      for(let j=0;j<=RAD;j++){const a=j/RAD*TAU,cx=Math.cos(a),cy=Math.sin(a);tmp.set(p.x+N.x*cx*rx+B.x*cy*ry,p.y+N.y*cx*rx+B.y*cy*ry,p.z+N.z*cx*rx+B.z*cy*ry);
-        if(u<HEAD*.7&&cy<0&&open>0){rot.setFromAxisAngle(N,-open*.7);tmp.sub(hinge).applyQuaternion(rot).add(hinge)}
-        if(u<HEAD*.7&&cy>=0&&open>0){rot.setFromAxisAngle(N,open*.25);tmp.sub(hinge).applyQuaternion(rot).add(hinge)}
+    const hp=headPath(t);
+    if(!lastHp||hp.distanceTo(lastHp)>.004){spine.unshift(hp.clone());lastHp=hp.clone()}else spine[0]=hp.clone();if(spine.length>6000)spine.pop();
+    const pts=[hp];const step=L/SEG;spine[0]=hp.clone();
+    {let need=step,prev=spine[0];for(let i=1;i<spine.length&&pts.length<=SEG;i++){const cur=spine[i];let seg=prev.distanceTo(cur);let from=prev.clone();
+      while(seg>=need&&pts.length<=SEG){const p=from.clone().lerp(cur,need/seg);pts.push(p);seg-=need;from=p;need=step}need-=seg;prev=cur}}
+    while(pts.length<=SEG){const n=pts.length;const l=pts[n-1].clone();l.z-=step*.98;l.x+=Math.cos((n*step)*.3)*step*.45;l.y+=(-2.15-l.y)*.05;pts.push(l)}
+    const open=clamp((t-(strikeAt-.15))/.25,0,1)*(t>7.2?clamp((7.8-t)/.5,0,1):1);
+    const hi=Math.round(HEAD*SEG*.78);hinge.copy(pts[hi]);const HN=new THREE.Vector3();
+    const FN=[],FB=[],FQ=[];{let pn_=null;for(let i=SEG;i>=0;i--){const p=pts[i],pn=pts[Math.min(SEG,i+1)],pp=pts[Math.max(0,i-1)];const q=new THREE.Vector3().subVectors(pp,pn).normalize();let n;
+        if(!pn_){n=new THREE.Vector3().crossVectors(q,UP);if(n.lengthSq()<1e-6)n.set(1,0,0);n.normalize()}else{n=pn_.clone().addScaledVector(q,-pn_.dot(q));if(n.lengthSq()<1e-8)n.set(1,0,0);n.normalize();
+          const want=new THREE.Vector3().crossVectors(q,UP);if(want.lengthSq()>1e-4){want.normalize();n.lerp(want,.04).normalize()}}
+        pn_=n;FN[i]=n;FQ[i]=q;FB[i]=new THREE.Vector3().crossVectors(n,q).normalize()}}
+    for(let i=0;i<=SEG;i++){const p=pts[i];N.copy(FN[i]);Q.copy(FQ[i]);B.copy(FB[i]);
+      const u=i/SEG;const [rx,ry]=prof(u);const head=u<HEAD;
+      for(let j=0;j<=RAD;j++){const a=j/RAD*TAU;let cx=Math.cos(a),cy=Math.sin(a);
+        let yy=cy*ry;if(head){yy=cy>0?cy*ry*(.85+.15*Math.abs(cx)):cy*ry;const eyeBump=Math.exp(-Math.pow((u/HEAD-.42)/.12,2))*Math.exp(-Math.pow((Math.abs(cx)-.62)/.25,2))*(cy>0?.22:0);yy+=eyeBump}
+        tmp.set(p.x+N.x*cx*rx+B.x*yy,p.y+N.y*cx*rx+B.y*yy,p.z+N.z*cx*rx+B.z*yy);
+        if(u<HEAD*.78&&open>0){const w=cy<0?-open*.32*Math.min(1,-cy*1.6):open*.1*Math.min(1,cy*1.6);rot.setFromAxisAngle(FN[hi],w);tmp.sub(hinge).applyQuaternion(rot).add(hinge)}
         const o=(i*(RAD+1)+j)*3;pos[o]=tmp.x;pos[o+1]=tmp.y;pos[o+2]=tmp.z}}
     geo.attributes.position.needsUpdate=true;geo.computeVertexNormals();
-    // глаза, клыки, язык
-    const ei=Math.round(HEAD*SEG*.45),ep=pts[ei];Q.subVectors(pts[ei-1],pts[ei+1]).normalize();N.crossVectors(Q,UP).normalize();B.crossVectors(N,Q).normalize();
-    eyes.forEach((g,k)=>{const s=k?-1:1;g.position.copy(ep).addScaledVector(N,s*.95).addScaledVector(B,.32);g.lookAt(g.position.clone().addScaledVector(N,s).addScaledVector(Q,.6));g.scale.setScalar(1.3)});
-    const fi=Math.round(HEAD*SEG*.18),fp=pts[fi];
-    fangs.forEach((m,k)=>{const s=k?-1:1;m.position.copy(fp).addScaledVector(N,s*.5).addScaledVector(B,-.1-open*.25);m.quaternion.setFromUnitVectors(UP,B.clone().negate());m.visible=open>.15;m.scale.setScalar(.5+open)});
-    tongue.position.copy(pts[0]).addScaledVector(Q,.6);tongue.quaternion.setFromUnitVectors(UP,Q);tongue.visible=Math.sin(t*13)>.1&&open<.2;
-    keyL.position.copy(hp).add(new THREE.Vector3(0,3,4));
-    camera.position.copy(CAM);camera.fov=46;camera.updateProjectionMatrix();camera.lookAt(0,.3+clamp((t-3.4)/1.1,0,1)*.9,-3);
-    if(t>5.35&&t<6.3)camShake(t,(6.3-t)*.25),camera.position.y+=1.1-2;
-    renderer.toneMappingExposure=t>T-.6?clamp((T-t)/.6,0,1):Math.min(1,t/.6);
-    return t<T},dispose(){scene.remove(body,keyL,tongue,...eyes,...fangs);geo.dispose();renderer.toneMappingExposure=1;resetCam();}});
+    // глаза, клыки, язык по каркасу головы
+    const frame=(i)=>{N.copy(FN[i]);Q.copy(FQ[i]);B.copy(FB[i]);return pts[i]};
+    let ep=frame(Math.round(HEAD*SEG*.42));const [erx,ery]=prof(HEAD*.42);
+    eyes.forEach((g,k)=>{const s=k?-1:1;g.position.copy(ep).addScaledVector(N,s*erx*.86).addScaledVector(B,ery*.38);
+      if(open>0){tmp.copy(g.position).sub(hinge).applyQuaternion(rot.setFromAxisAngle(FN[hi],open*.22)).add(hinge);g.position.copy(tmp)}
+      g.lookAt(g.position.clone().addScaledVector(N,s).addScaledVector(Q,.7).addScaledVector(B,.2))});
+    let fp2=frame(Math.round(HEAD*SEG*.14));const [frx]=prof(HEAD*.14);
+    fangs.forEach((m,k)=>{const s=k?-1:1;m.position.copy(fp2).addScaledVector(N,s*frx*.55).addScaledVector(B,-.08);
+      tmp.copy(m.position).sub(hinge).applyQuaternion(rot.setFromAxisAngle(FN[hi],open*.22)).add(hinge);m.position.copy(tmp).addScaledVector(B,-.3*open);
+      m.quaternion.setFromUnitVectors(UP,B.clone().negate().addScaledVector(Q,.25).normalize());m.visible=open>.2;m.scale.setScalar(.6+.6*open)});
+    const tp=frame(0);tongue.position.copy(tp).addScaledVector(Q,.1).addScaledVector(B,-.05);tongue.quaternion.setFromUnitVectors(UP,Q.clone().addScaledVector(B,-.15).normalize());
+    const flick=Math.max(0,Math.sin(t*9))*(open<.1?1:0);tongue.scale.set(1,.2+flick*.9,1);tongue.visible=flick>.05;
+    // камера
+    const sideK=easeIO(clamp((t-3.6)/1.6,0,1));camera.fov=44;camera.updateProjectionMatrix();camera.position.set(4.2*sideK,.6+.4*sideK,10.5-1.2*sideK);camera.lookAt(-.4*sideK,-.4+clamp((t-3.7)/1.2,0,1)*1.2,-3+3*sideK);
+    if(t>strikeAt+.2&&t<strikeAt+1.1){const a=(strikeAt+1.1-t)*.22;camera.position.x+=Math.sin(t*61)*a;camera.position.y+=Math.cos(t*53)*a}
+    renderer.toneMappingExposure=(t>T-.7?clamp((T-t)/.7,0,1):Math.min(1,t/.8))*.95;
+    if(t<4)for(let i=0;i<3;i++){const q=pts[Math.random()*SEG|0];emit(new THREE.Vector3(q.x+rnd(-1,1),-2.4,q.z+rnd(-1,1)),new THREE.Vector3(rnd(-.3,.3),rnd(.1,.4),rnd(-.3,.3)),'#3fae6a',rnd(.6,1.4),rnd(1.5,2.5),{drag:.99})}
+    return t<T},dispose(){scene.remove(body,ground,key,rim,hemi,tongue,...eyes,...fangs);geo.dispose();renderer.toneMappingExposure=1;resetCam();}});
 }
 // Гриффиндор: огненный феникс летит из глубины на зрителя и раскрывает крылья
 function phoenixFinale(){
@@ -223,22 +302,22 @@ function eagleFinale(){
 }
 // Пуффендуй: барсук (короткий хвост, полосатая морда) выбегает к зрителю
 function badgerMat(){
-  const m=new THREE.MeshStandardMaterial({color:0x3a3a40,roughness:.8,emissive:0x111111});
+  const m=new THREE.MeshStandardMaterial({color:0x3a3a40,roughness:.85,emissive:0x080808,envMapIntensity:.25});
   m.onBeforeCompile=sh=>{sh.vertexShader='varying vec3 vBP;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvBP=position;');
     sh.fragmentShader='varying vec3 vBP;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
       float head=smoothstep(28.0,40.0,vBP.z);float stripe=smoothstep(4.0,2.0,abs(vBP.x))*head;float cheek=smoothstep(7.0,10.0,abs(vBP.x))*head;
       float belly=smoothstep(30.0,18.0,vBP.y)*(1.0-head);
-      diffuseColor.rgb=mix(vec3(.42,.42,.46),vec3(.1,.1,.11),belly);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.06,.06,.07),head);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.95,.94,.9),max(stripe,cheek));`).replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
+      diffuseColor.rgb=mix(vec3(.26,.26,.29),vec3(.07,.07,.08),belly);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.06,.06,.07),head);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.95,.94,.9),max(stripe,cheek));`).replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
       float fr=pow(1.0-abs(dot(normalize(vViewPosition),normal)),2.0);totalEmissiveRadiance+=vec3(1.0,.8,.3)*fr*1.2;`)};
   return m;
 }
 function badgerFinale(){
-  setMode('finale');bgFor('rgba(255,210,90,.7)');const I=instance('Fox',badgerMat(),7.5);const run=I.play('Run',1.15);scene.add(I.pivot);
+  setMode('finale');bgFor('rgba(255,210,90,.7)');const I=instance('Fox',badgerMat(),6.4);const run=I.play('Run',1.15);scene.add(I.pivot);
   I.root.traverse(b=>{if(b.isBone){if(/Tail/.test(b.name))b.scale.setScalar(b.name.includes('01')?.45:.6);if(/Spine/.test(b.name))b.scale.set(1.35,1,1.25);if(/Leg01|UpperArm/.test(b.name))b.scale.setScalar(.72)}});
   const lamp=new THREE.PointLight(0xffd36a,30,30);lamp.position.set(0,6,6);scene.add(lamp);const v=new THREE.Vector3();let t=0,switched=false;const T=7;
   return addEffect({update(dt){t+=dt;I.mixer.update(dt);
     I.root.traverse(b=>{if(b.isBone&&/Tail/.test(b.name))b.scale.setScalar(.5)});
-    const a=easeO(clamp(t/3,0,1));I.pivot.position.set(-12*(1-a),-1.9,-18*(1-a)+3);I.pivot.rotation.y=.6*(1-a)+.25;
+    const a=easeO(clamp(t/3,0,1));I.pivot.position.set(-12*(1-a),-2.2,-18*(1-a)+.5);I.pivot.rotation.y=.6*(1-a)+.25;
     if(t>3.1&&!switched){switched=true;const s=I.play('Survey',1);run.crossFadeTo(s,.4,false)}
     if(t<3)for(let i=0;i<6;i++){emit(new THREE.Vector3(I.pivot.position.x+rnd(-1,1),-.7,I.pivot.position.z+rnd(-1,1)),new THREE.Vector3(rnd(-1,1),rnd(.5,1.5),rnd(-1,1)),'#c9a35a',rnd(.2,.5),rnd(.5,1),{g:-2})}
     for(let i=0;i<4;i++){randomVertexWorld(I,v);emit(v,new THREE.Vector3(rnd(-.4,.4),rnd(0,.8),rnd(-.4,.4)),'#ffd36a',rnd(.12,.3),rnd(.6,1.2))}
