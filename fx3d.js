@@ -486,7 +486,7 @@ async function mapInto(el){
 
 // ===== Модели из Sketchfab (авторы — в подписи на главном экране) =====
 const MODEL_CACHE={};
-function getModel(name){if(!MODEL_CACHE[name])MODEL_CACHE[name]=new Promise((res,rej)=>loader.load('models/'+name+'.glb?v=15',res,undefined,rej));return MODEL_CACHE[name]}
+function getModel(name){if(!MODEL_CACHE[name])MODEL_CACHE[name]=new Promise((res,rej)=>loader.load('models/'+name+'.glb?v=16',res,undefined,rej));return MODEL_CACHE[name]}
 function skinBox(root){root.updateMatrixWorld(true);const b=new THREE.Box3(),v=new THREE.Vector3();
   root.traverse(o=>{if(o.isSkinnedMesh){const p=o.geometry.attributes.position,st=Math.max(1,Math.floor(p.count/2500));for(let i=0;i<p.count;i+=st){v.fromBufferAttribute(p,i);o.applyBoneTransform(i,v);v.applyMatrix4(o.matrixWorld);b.expandByPoint(v)}}else if(o.isMesh)b.expandByObject(o)});return b}
 async function prep(name,len,opt={}){
@@ -557,11 +557,10 @@ function lionFinale(){const v=V3();
 function snakeModelFinale(){const v=V3();
   return finaleBase('rgba(60,255,140,.35)',7.6,async ext=>{const L=new THREE.PointLight(0x7dffb0,40,30),D=new THREE.DirectionalLight(0xffffff,1.6);D.position.set(3,8,6);scene.add(L,D);ext.L=L;ext.extra=[L,D];return prep('Snake',11,{clip:0,ts:1.6})},
     (I,t,dt,ext)=>{camera.position.set(0,1.3,9);camera.fov=48;camera.updateProjectionMatrix();camera.lookAt(0,-.2,-4);
-      const a=easeO(clamp(t/5.2,0,1));I.pivot.position.set(Math.sin(t*1.1)*1.4*(1-a),-1.6,-40+a*40);I.pivot.rotation.set(0,Math.sin(t*1.1)*.25*(1-a),0);
-      if(t>5.4){const s=clamp((t-5.4)/.4,0,1);I.pivot.position.z+=easeIO(s)*3;}
+      const a=easeO(clamp(t/5.2,0,1));I.pivot.position.set(Math.sin(t*1.1)*1.4*(1-a),-1.6,-46+a*30);I.pivot.rotation.set(0,Math.sin(t*1.1)*.25*(1-a),0);
       ext.L.position.copy(I.pivot.position).add(new THREE.Vector3(0,2.5,4));
       if(t<5)for(let i=0;i<3;i++){I.sample(v);emit(new THREE.Vector3(v.x,-1.5,v.z),new THREE.Vector3(rnd(-.3,.3),rnd(.1,.5),rnd(-.3,.3)),'#3fae6a',rnd(.3,.7),rnd(1,2))}
-      if(t>5.6&&t<6.4){camera.position.x+=Math.sin(t*61)*.12;camera.position.y+=Math.cos(t*53)*.1}});
+});
 }
 function eagleModelFinale(){const v=V3();
   return finaleBase('rgba(140,190,255,.7)',7,async ext=>{const D=new THREE.DirectionalLight(0xfff0dc,2);D.position.set(2,8,8);scene.add(D);ext.extra=[D];return prep('Eagle',9,{clip:0,ts:1})},
@@ -579,24 +578,36 @@ function badgerModelFinale(){const v=V3();let sw=false;
       if(Math.random()<.4){I.sample(v);emit(v,new THREE.Vector3(rnd(-.4,.4),rnd(0,.8),rnd(-.4,.4)),'#ffd36a',rnd(.1,.25),rnd(.6,1.2))}});
 }
 // ---- Кубок-трофей в лобби ----
-async function trophyInto(el){
-  const g=await getModel('Cup');if(!el.isConnected)return;const cv=document.createElement('canvas');cv.className='mapcv';el.appendChild(cv);
+// ---- мини-сцена с моделью внутри элемента (кубок в лобби, дракон у вопроса) ----
+async function miniStage(el,name,o={}){
+  const g=await getModel(name);if(!el.isConnected)return;const cv=document.createElement('canvas');cv.className='mapcv';el.appendChild(cv);
   let r;try{r=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true})}catch(e){cv.remove();return}
   r.setPixelRatio(Math.min(2,devicePixelRatio||1));r.setClearColor(0,0);r.toneMapping=THREE.ACESFilmicToneMapping;r.outputColorSpace=THREE.SRGBColorSpace;
-  const sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(30,1,.001,100);try{sc.environment=new THREE.PMREMGenerator(r).fromScene(new RoomEnvironment(),.04).texture}catch(e){}
-  sc.add(new THREE.HemisphereLight(0xdfe8ff,0x302040,1.2));const k=new THREE.DirectionalLight(0xffffff,2.2);k.position.set(2,4,3);sc.add(k);const blue=new THREE.PointLight(0x6fb8ff,3,2);sc.add(blue);
-  const root=g.scene.clone(true);sc.add(root);const b=new THREE.Box3().setFromObject(root),c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3());root.position.sub(c);
-  const H=s.y;blue.position.set(0,H*.55,0);
-  const N=120,pg=new THREE.BufferGeometry(),pp=new Float32Array(N*3),pd=[];for(let i=0;i<N;i++)pd.push({l:0});pg.setAttribute('position',new THREE.BufferAttribute(pp,3));
-  const pm=new THREE.PointsMaterial({color:0x8fd0ff,size:H*.035,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false});sc.add(new THREE.Points(pg,pm));
-  const resize=()=>{const w=el.clientWidth||200,h=el.clientHeight||200;r.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();const d=H*.5/Math.tan(cam.fov*Math.PI/360);cam.position.set(0,H*.12,d);cam.lookAt(0,H*.05,0)};resize();const ro=new ResizeObserver(resize);ro.observe(el);
+  const sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(30,1,.01,1000);try{sc.environment=new THREE.PMREMGenerator(r).fromScene(new RoomEnvironment(),.04).texture}catch(e){}
+  sc.add(new THREE.HemisphereLight(0xdfe8ff,0x302040,o.hemi??1.2));const k=new THREE.DirectionalLight(0xffffff,o.key??2.2);k.position.set(2,4,3);sc.add(k);
+  const rim=new THREE.DirectionalLight(o.rimCol??0x88c8ff,o.rim??1.5);rim.position.set(-3,2,-4);sc.add(rim);
+  const root=SkeletonUtils.clone(g.scene);root.traverse(x=>{if(x.isMesh)x.frustumCulled=false});
+  const mixer=new THREE.AnimationMixer(root);if(g.animations[0]&&g.animations[0].duration>.05){const a=mixer.clipAction(g.animations[0]);a.timeScale=o.ts||1;a.play()}mixer.update(.001);
+  // нормализуем размер: высота/габарит = 1, центр в нуле
+  const b=skinBox(root),sz=b.getSize(new THREE.Vector3()),c=b.getCenter(new THREE.Vector3());const s=1/Math.max(sz.x,sz.y,sz.z);
+  root.scale.setScalar(s);root.position.set(-c.x*s,-c.y*s,-c.z*s);const W=sz.x*s,H=sz.y*s,D=sz.z*s;
+  const pivot=new THREE.Group();pivot.add(root);sc.add(pivot);
+  const R=Math.hypot(W,H,D)/2;
+  let extra=null;if(o.sparks){const N=120,pg=new THREE.BufferGeometry(),pp=new Float32Array(N*3),pd=[];for(let i=0;i<N;i++)pd.push({l:0});pg.setAttribute('position',new THREE.BufferAttribute(pp,3));
+    sc.add(new THREE.Points(pg,new THREE.PointsMaterial({color:0x8fd0ff,size:H*.03,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false})));const bl=new THREE.PointLight(0x6fb8ff,2,H*1.5);bl.position.set(0,H*.3,0);sc.add(bl);
+    extra=(dt,t)=>{bl.intensity=2+Math.sin(t*9)*.6;for(let i=0;i<N;i++){const p=pd[i];if(p.l<=0&&Math.random()<.12){p.l=.5+Math.random()*.6;p.x=(Math.random()-.5)*W*.45;p.z=(Math.random()-.5)*D*.45;p.y=H*.36}
+      if(p.l>0){p.l-=dt;p.y+=dt*H*.4;p.x*=.98;p.z*=.98}pp[i*3]=p.l>0?p.x:1e6;pp[i*3+1]=p.y||0;pp[i*3+2]=p.z||0}pg.attributes.position.needsUpdate=true}}
+  const resize=()=>{const w=el.clientWidth||200,h=el.clientHeight||200;r.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();
+    const fitH=(o.fitH??H*.5)/Math.tan(cam.fov*Math.PI/360),fitW=(o.fitW??R)/(Math.tan(cam.fov*Math.PI/360)*cam.aspect);const d=Math.max(fitH,fitW)+R*.5;
+    cam.position.set(0,d*(o.camUp??0),d);cam.lookAt(0,0,0)};resize();const ro=new ResizeObserver(resize);ro.observe(el);
   const clk=new THREE.Clock();let t=0;
-  const loop=()=>{if(!el.isConnected){ro.disconnect();r.dispose();return}const dt=Math.min(.05,clk.getDelta());t+=dt;root.rotation.y=t*.5;root.position.y=-c.y+Math.sin(t*1.2)*H*.02;blue.intensity=2.5+Math.sin(t*9)*.6;
-    for(let i=0;i<N;i++){const p=pd[i];if(p.l<=0&&Math.random()<.15){p.l=.6+Math.random()*.6;p.x=(Math.random()-.5)*s.x*.5;p.z=(Math.random()-.5)*s.z*.5;p.y=H*.42}
-      if(p.l>0){p.l-=dt;p.y+=dt*H*.5;p.x*=.98;p.z*=.98}pp[i*3]=p.l>0?p.x:1e6;pp[i*3+1]=p.y||0;pp[i*3+2]=p.z||0}
-    pg.attributes.position.needsUpdate=true;r.render(sc,cam);requestAnimationFrame(loop)};
+  const loop=()=>{if(!el.isConnected){ro.disconnect();r.dispose();return}const dt=Math.min(.05,clk.getDelta());t+=dt;mixer.update(dt);
+    pivot.rotation.y=o.spin?t*o.spin:(o.yaw??0)+Math.sin(t*.35)*(o.sway??.5);pivot.position.y=Math.sin(t*1.2)*H*(o.bob??.02);extra&&extra(dt,t);
+    if(o.fadeIn)cv.style.opacity=Math.min(1,t/o.fadeIn);r.render(sc,cam);requestAnimationFrame(loop)};
   el.classList.add('live');loop();
 }
+function trophyInto(el){return miniStage(el,'Cup',{spin:.5,sparks:true,fitH:.56,bob:.015})}
+function dragonInto(el){return miniStage(el,el.dataset.dragon||'Dragon',{yaw:-.7,sway:.45,ts:.8,fitH:.36,fitW:.4,camUp:.15,rim:2.2,rimCol:0xff9a5a,bob:.03,fadeIn:.8})}
 
 const API={ready:false,
   patronus(){if(!API.ready)return false;const keys=Object.keys(KINDS).filter(k=>k!==lastKind);const k=keys[Math.random()*keys.length|0];lastKind=k;const K=KINDS[k];
@@ -607,14 +618,12 @@ const API={ready:false,
   transition(){if(!API.ready)return false;const r=Math.random();const N=(s)=>{if(typeof FX2!=='undefined')FX2.showName(s)};
     if(r<.14){N('Корнуэльские пикси');pixies();return true}
     if(r<.26){N('Феникс');flyAcross('Phoenix',{len:6,T:6.5,y:1.8,trail:10,fire:true,glow:'rgba(255,140,40,.8)'});return true}
-    if(r<.36){N('Венгерская хвосторога');flyAcross('IceDragon',{len:15,T:7,y:0,z:-6,bob:.8,bobF:1,trail:3,spark:'#bfe6ff',glow:'rgba(150,200,255,.35)'});return true}
-    if(r<.44){N('Дракон');flyAcross('Dragon',{len:13,T:7,y:-.5,z:-6,bob:.6,trail:0,glow:'rgba(0,0,0,0)'});return true}
     if(r<.54){N('Золотой снитч');snitchModel();return true}
     if(r<.62&&typeof FX2!=='undefined'&&FX2.flyingKeys){FX2.flyingKeys();return true}
     if(r<.74&&typeof FX2!=='undefined'&&FX2.castSpell){const ks=['avada','expelliarmus','incendio','leviosa','protego'];FX2.castSpell(ks[Math.random()*ks.length|0]);return true}
     return API.patronus()},
   pixies(){pixies()},phoenix(){flyAcross('Phoenix',{len:6,T:6.5,y:1.8,trail:10,fire:true,glow:'rgba(255,140,40,.8)'})},iceDragon(){flyAcross('IceDragon',{len:15,T:7,y:0,z:-6,bob:.8,bobF:1,trail:3,spark:'#bfe6ff',glow:'rgba(150,200,255,.35)'})},dragon(){flyAcross('Dragon',{len:13,T:7,y:-.5,z:-6,bob:.6,glow:'rgba(0,0,0,0)'})},snitchM(){snitchModel()},
-  trophyInto(el){trophyInto(el).catch(e=>console.warn('cup',e))},
+  trophyInto(el){trophyInto(el).catch(e=>console.warn('cup',e))},dragonInto(el){dragonInto(el).catch(e=>console.warn('dragon',e))},
   clear(){for(const e of effects)e.update=()=>false;for(const d of pData)d.life=0;document.querySelectorAll('.frost,.spellflash').forEach(x=>x.remove())},
   mapInto(el){mapInto(el).catch(e=>console.warn('map',e))},
   snitch(){if(API.ready)snitch()},mermaid(){if(API.ready)mermaid()},dementor(){if(API.ready)dementor()},spell(k){if(typeof FX2!=='undefined'&&FX2.castSpell)FX2.castSpell(k||'avada')},
