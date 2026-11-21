@@ -343,5 +343,42 @@ function protego(){
     spellBolt({x1:dir?W*.98:W*.02,y1:H*.15,x2:X+(dir?R*.6:-R*.6),y2:Y-R*.2,col:'#ff3030',core:'#fff0e8',jag:.08,branches:1,width:.8,dur:1200,delay:0});});
 }
 
-return {incendio,lumos,leviosa,protego,patronus,phoenixFire,house,stop,drawAt,burst,SPECIES,wandCast,showName,castSpell};
+/* ---------- Летающие ключи (из «Философского камня») ---------- */
+function drawKey(x,y,s,rot,flap,hue,glint){
+  c.save();c.translate(x,y);c.rotate(rot);c.scale(s,s);
+  // крылья (полупрозрачные, перьевые)
+  for(const sg of[-1,1]){c.save();c.translate(-6,-2);c.scale(1,sg);c.rotate(-.35-flap*.9);
+    const g=c.createLinearGradient(0,0,0,-34);g.addColorStop(0,'rgba(255,255,255,.95)');g.addColorStop(1,'rgba(220,235,255,.25)');c.fillStyle=g;
+    c.beginPath();c.moveTo(0,0);c.bezierCurveTo(-6,-14,-2,-30,8,-36);c.bezierCurveTo(12,-26,16,-14,14,-2);c.closePath();c.fill();
+    c.strokeStyle='rgba(255,255,255,.55)';c.lineWidth=.7;for(let k=0;k<4;k++){c.beginPath();c.moveTo(4+k*2,-2);c.lineTo(2+k*3,-26+k*4);c.stroke()}c.restore()}
+  // ключ
+  const gold=c.createLinearGradient(-24,-6,30,6);gold.addColorStop(0,`hsl(${hue},70%,38%)`);gold.addColorStop(.45,`hsl(${hue},90%,72%)`);gold.addColorStop(.55,`hsl(${hue},100%,88%)`);gold.addColorStop(1,`hsl(${hue},75%,42%)`);
+  c.fillStyle=gold;c.strokeStyle=`hsl(${hue},60%,28%)`;c.lineWidth=1.2;
+  c.beginPath();c.arc(-18,0,9,0,TAU);c.arc(-18,0,4.5,0,TAU,true);c.fill('evenodd');c.stroke();
+  c.beginPath();c.rect(-10,-2.4,34,4.8);c.fill();c.stroke();
+  c.beginPath();c.moveTo(16,2);c.lineTo(16,9);c.lineTo(20,9);c.lineTo(20,6);c.lineTo(24,6);c.lineTo(24,2);c.closePath();c.fill();c.stroke();
+  if(glint>0){c.globalCompositeOperation='lighter';c.globalAlpha=glint;const R=16;c.drawImage(sprite('#fff6c8'),-18-R,-R,R*2,R*2);c.globalAlpha=1;c.globalCompositeOperation='source-over'}
+  c.restore();
+}
+function flyingKeys(){
+  ensure();showName('Летающие ключи');
+  const N=Math.round(Math.min(46,22+W/60)),keys=[];
+  for(let i=0;i<N;i++)keys.push({ph:Math.random()*TAU,sp:.8+Math.random()*.5,lane:Math.random(),size:(.7+Math.random()*.9)*Math.min(1.6,Math.max(.8,W/1100)),hue:38+Math.random()*16,fl:12+Math.random()*6,delay:Math.random()*.35});
+  const silver={ph:0,sp:1,lane:.5,size:2.1*Math.min(1.6,Math.max(.8,W/1100)),hue:210,fl:9,delay:.2,special:true};keys.push(silver);
+  start({dur:5200,custom:(t,now,dt)=>{c=mc;c.save();c.setTransform(DPR,0,0,DPR,0,0);
+    for(const k of keys){const u=(t-k.delay)/(1-k.delay);if(u<0||u>1)continue;
+      const e=u<.5?2*u*u:1-Math.pow(-2*u+2,2)/2;
+      // общий вихрь стаи: движение по широкой дуге с завитком
+      const cx=-.15*W+e*1.3*W, cy=H*(.25+.5*k.lane)+Math.sin(e*TAU*1.2+k.ph)*H*.12;
+      const sw=Math.sin(now/600*k.sp+k.ph);const x=cx+Math.cos(now/700*k.sp+k.ph)*60*k.size, y=cy+sw*40*k.size;
+      const vx=1.3*W/5.2, vy=Math.cos(e*TAU*1.2+k.ph)*H*.12*TAU*1.2/5.2;const rot=Math.atan2(vy,vx)*.6+Math.sin(now/300+k.ph)*.12;
+      const flap=Math.sin(now/1000*k.fl*TAU/4+k.ph);const fade=Math.min(1,u/.08)*Math.min(1,(1-u)/.1);c.globalAlpha=fade;
+      if(k.special){const R=60*k.size;c.globalCompositeOperation='lighter';c.globalAlpha=.5*fade;c.drawImage(sprite('#bfe0ff'),x-R,y-R,R*2,R*2);c.globalCompositeOperation='source-over';c.globalAlpha=fade}
+      drawKey(x,y,k.size*(k.special?1.2:1),rot,(flap+1)/2,k.hue,Math.max(0,Math.sin(now/250+k.ph*3))*.6*fade);
+      if(Math.random()<.25*dt)emit({x:x-Math.cos(rot)*20*k.size,y,vx:-1-Math.random(),vy:(Math.random()-.5),r:1.2+Math.random()*1.6,life:.8,max:.8,col:k.special?'#cfe6ff':'#ffe29a'})}
+    c.restore()}});
+  try{if(window.__hpqSound!==false){const a=fxAC();for(let i=0;i<40;i++){const o=a.createOscillator(),g=a.createGain(),tt=a.currentTime+i*.11;o.type='triangle';o.frequency.value=2400+Math.random()*1600;g.gain.setValueAtTime(.0001,tt);g.gain.exponentialRampToValueAtTime(.025,tt+.01);g.gain.exponentialRampToValueAtTime(.0001,tt+.12);o.connect(g).connect(a.destination);o.start(tt);o.stop(tt+.15)}}}catch(e){}
+}
+
+return {flyingKeys,incendio,lumos,leviosa,protego,patronus,phoenixFire,house,stop,drawAt,burst,SPECIES,wandCast,showName,castSpell};
 })();
