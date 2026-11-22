@@ -154,7 +154,7 @@ function batWing(len){
   return {g,inner,outer,mat:mem};
 }
 const GHOSTS={
-  lynx:{n:'Рысь (Кингсли Бруствер)',model:'Lion',o:{sub:[0,38],strip:'ROOT',len:5.2,T:6,y:-2.2,z:-2,ts:1.9,bob:.03,bobF:6,roll:0}},
+  lynx:{n:'Рысь (Кингсли Бруствер)',model:'Lion',o:{sub:[0,38],strip:'ROOT',len:5.2,T:3.8,y:-2.2,z:-2,ts:2.7,bob:.03,bobF:6,roll:0}},
   phoenixG:{n:'Феникс (Альбус Дамблдор)',model:'Phoenix',col:'#7fc4ff',core:.22,pow:1.7,o:{len:6.5,T:5.5,y:1.6,z:-2,bob:.5,trail:12}},
   eagleG:{n:'Орёл',model:'Eagle',o:{len:8,T:6,y:1.4,z:-2,bob:.5}},
 };
@@ -168,6 +168,10 @@ const KINDS={
   phoenix:{n:'Феникс',model:'Parrot',len:7.5,fire:true,ts:.8,bird:true},
 };
 let lastKind='';
+// разные траектории: прямо, сверху вниз, снизу вверх, дугой, «нырок»
+let lastPath='';
+function pickPath(air){const P={flat:k=>0,down:k=>(air?4.5:3.2)*(1-k)-(air?2:.4)*k,up:k=>-(air?2:.4)*(1-k)+(air?4.5:3.2)*k,arc:k=>Math.sin(Math.PI*k)*(air?4:2.8),wave:k=>Math.sin(k*Math.PI*2)*(air?2.2:1.2)};
+  const ks=Object.keys(P).filter(n=>n!==lastPath);const n=ks[Math.random()*ks.length|0];lastPath=n;return P[n]}
 function creature(kindKey,from,opt={}){
   const K={...KINDS[kindKey]};if(opt.len)K.len=opt.len;const mat=K.fire?fireMat():ghostMat(K.col,{rim:K.rim,core:K.core,pow:K.pow});
   const I=instance(K.model,mat,K.len);I.play(K.clip,K.ts);scene.add(I.pivot);
@@ -188,16 +192,17 @@ function creature(kindKey,from,opt={}){
       const base=new THREE.SphereGeometry(.1,10,8);base.translate(s*.06,0,0);ag.add(new THREE.Mesh(base,am))}
     ag.scale.setScalar(.8/I.scale);m.add(ag);extras.ant=ag;extras.am=am}
   if(K.wings){for(const s of[1,-1]){const w=softWing(K.wings,200,K.col,K.rim);w.g.scale.set(s,1,1);m.add(w.g);(extras.wings=extras.wings||[]).push({...w,s})}}
-  const T=opt.speedT||(K.fly?6:5.2);let t=0;
+  const T=opt.speedT||(K.fly?6:5.2);let t=0;const PATH=pickPath(K.fly||K.bird);let py=null;
   return addEffect({update(dt){t+=dt;I.mixer.update(dt*(K.fly?.85:1));mat.userData.u&&(mat.userData.u.uT.value=t);if(mat.userData.sh)mat.userData.sh.uniforms.uT.value=t;
     const k=clamp(t/T,0,1),grow=easeO(clamp(t/.9,0,1));
-    const x=start.x+(endX-start.x)*easeIO(k),z=z0+(z1-z0)*k,y=start.y+(y0-start.y)*easeO(clamp(t/1.1,0,1))+(K.bird||K.fly?Math.sin(t*2.2)*.5:0);
-    I.pivot.position.set(x,y,z);I.pivot.rotation.y=dir>0?Math.PI/2:-Math.PI/2;if(K.bird||K.fly){I.pivot.rotation.z=Math.sin(t*2.2)*.08*dir;I.pivot.rotation.x=K.fly?-.08:0}
+    const x=start.x+(endX-start.x)*easeIO(k),z=z0+(z1-z0)*k,y=start.y+(y0-start.y)*easeO(clamp(t/1.1,0,1))+PATH(k)+(K.bird||K.fly?Math.sin(t*2.2)*.3:0);
+    const pitch=py==null?0:Math.atan2(y-py,Math.max(.02,Math.abs(x-(I.pivot.position.x))));py=y;
+    I.pivot.position.set(x,y,z);I.pivot.rotation.order='YXZ';I.pivot.rotation.y=window.__faceCam!=null?window.__faceCam:dir>0?Math.PI/2:-Math.PI/2;I.pivot.rotation.x=-clamp(pitch,-.6,.6)*.8+(K.fly?-.06:0);I.pivot.rotation.z=(K.bird||K.fly)?Math.sin(t*2.2)*.08*dir:0;
     I.pivot.scale.setScalar(.08+.92*grow);
     const fade=k<.06?k/.06:k>.88?(1-k)/.12:1;mat.opacity=(K.fire?1:.9)*fade;if(extras.hm)extras.hm.opacity=fade;
-    if(extras.horn){morphVertex(m,keys.ear,v);morphVertex(m,keys.nose,v2);v3.subVectors(v2,v).normalize();
-      extras.horn.position.copy(v).lerp(v2,.22);extras.horn.position.y-=16;const d=v3.clone().multiplyScalar(.8).add(UP.clone().multiplyScalar(1)).normalize();extras.horn.quaternion.setFromUnitVectors(UP,d)}
-    if(extras.ant){morphVertex(m,keys.ear,v);morphVertex(m,keys.nose,v2);v3.subVectors(v2,v);extras.ant.position.copy(v).lerp(v2,.12);extras.ant.position.y-=9;extras.ant.rotation.set(0,Math.atan2(v3.x,v3.z),0,'YXZ');extras.ant.rotateX(-.25);extras.am.opacity=fade*.95;extras.am.userData.u&&(extras.am.userData.u.uT.value=t)}
+    if(extras.horn){morphVertex(m,keys.ear,v);morphVertex(m,keys.nose,v2);v3.subVectors(v2,v);v3.x=0;v3.normalize();
+      extras.horn.position.copy(v).lerp(v2,.22);extras.horn.position.y-=16;extras.horn.position.x=v2.x;const d=v3.clone().multiplyScalar(.8).add(UP.clone().multiplyScalar(1)).normalize();extras.horn.quaternion.setFromUnitVectors(UP,d)}
+    if(extras.ant){morphVertex(m,keys.ear,v);morphVertex(m,keys.nose,v2);v3.subVectors(v2,v);v3.x=0;extras.ant.position.copy(v).lerp(v2,.12);extras.ant.position.y-=9;extras.ant.position.x=v2.x;extras.ant.rotation.set(0,Math.atan2(v3.x,v3.z),0,'YXZ');extras.ant.rotateX(-.25);extras.am.opacity=fade*.95;extras.am.userData.u&&(extras.am.userData.u.uT.value=t)}
     if(extras.wings){morphVertex(m,keys.wither,v);const fl=Math.sin(t*(K.wings==='bat'?5:4.2));
       for(const w of extras.wings){w.g.position.copy(v);w.g.position.y-=K.wings==='bat'?14:10;w.g.position.x+=w.s*4;w.g.rotation.y=.3;w.update(t,.32,.62,K.wings==='bat'?4.6:3.8);w.mat.opacity=fade*(K.wings==='bat'?.9:1);w.mat.userData.u&&(w.mat.userData.u.uT.value=t)}}
     const n=K.fire?14:6;for(let i=0;i<n;i++){randomVertexWorld(I,v);
@@ -479,15 +484,25 @@ function mermaid(){
 
 // ---------- Карта Мародёров (модель Saandy, CC BY 4.0) в карточке вопроса ----------
 let mapGltf=null,mapLoading=null;
+// Один общий WebGL-рендерер для всех маленьких 3D-окошек (кубок, шляпа, карта, модели у вопросов).
+// Раньше каждое окошко создавало свой WebGL-контекст; браузер держит их ограниченно и при переполнении
+// сбрасывает GPU — экран на пару секунд становился белым.
+const MS={r:null,env:null};
+function sharedR(){if(MS.r)return MS.r;const S=new THREE.WebGLRenderer({antialias:true,alpha:true});S.setPixelRatio(1);S.setSize(1024,1024,false);S.setClearColor(0,0);S.toneMapping=THREE.ACESFilmicToneMapping;S.outputColorSpace=THREE.SRGBColorSpace;S.autoClear=false;MS.r=S;return S}
+function sharedEnv(){if(!MS.env){try{MS.env=new THREE.PMREMGenerator(sharedR()).fromScene(new RoomEnvironment(),.04).texture}catch(e){}}return MS.env}
+function virtR(cv){const S=sharedR(),ctx=cv.getContext('2d');let w=1,h=1,pr=1;
+  return {toneMapping:0,outputColorSpace:'',setPixelRatio(p){pr=p},setClearColor(){},
+    setSize(W,H){const k=Math.min(1,1024/Math.max(W*pr,H*pr,1));w=Math.max(1,Math.round(W*pr*k));h=Math.max(1,Math.round(H*pr*k));cv.width=w;cv.height=h},
+    render(sc,cam){S.setViewport(0,0,w,h);S.setScissor(0,0,w,h);S.setScissorTest(true);S.clear();S.render(sc,cam);ctx.clearRect(0,0,w,h);ctx.drawImage(S.domElement,0,1024-h,w,h,0,0,w,h)},dispose(){}}}
 function loadMap(){if(mapGltf)return Promise.resolve(mapGltf);if(!mapLoading)mapLoading=new Promise((res,rej)=>loader.load('models/MaraudersMap.glb?v=1',g=>{mapGltf=g;res(g)},undefined,rej));return mapLoading}
 async function mapInto(el){
   const g=await loadMap();if(!el.isConnected)return;
   const cv=document.createElement('canvas');cv.className='mapcv';el.appendChild(cv);
-  let r;try{r=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true})}catch(e){cv.remove();return}
+  let r;try{r=virtR(cv)}catch(e){cv.remove();return}
   r.setPixelRatio(Math.min(2,devicePixelRatio||1));r.setClearColor(0,0);r.toneMapping=THREE.ACESFilmicToneMapping;r.outputColorSpace=THREE.SRGBColorSpace;
   const sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(30,1,.01,1000);
   sc.add(new THREE.HemisphereLight(0xfff3dc,0x8a6a48,1.6));sc.add(new THREE.AmbientLight(0xfff0d8,.9));const camL=new THREE.DirectionalLight(0xfff2dc,1.6);sc.add(camL);const key=new THREE.DirectionalLight(0xffe6b8,2.2);key.position.set(2,5,4);sc.add(key);const warm=new THREE.PointLight(0xffb060,0,0);sc.add(warm);
-  try{const pm=new THREE.PMREMGenerator(r);sc.environment=pm.fromScene(new RoomEnvironment(),.04).texture}catch(e){}
+  sc.environment=sharedEnv();
   const root=SkeletonUtils.clone(g.scene);root.traverse(o=>{if(o.isMesh){o.frustumCulled=false;if(o.material){o.material.side=THREE.DoubleSide;o.material.envMapIntensity=.4}}});sc.add(root);
   const mixer=new THREE.AnimationMixer(root);const act=mixer.clipAction(g.animations[0]);act.setLoop(THREE.LoopOnce);act.clampWhenFinished=true;act.play();
   // кадр по раскрытой карте
@@ -520,7 +535,7 @@ async function mapInto(el){
 
 // ===== Модели из Sketchfab (авторы — в подписи на главном экране) =====
 const MODEL_CACHE={};
-function getModel(name){if(!MODEL_CACHE[name])MODEL_CACHE[name]=new Promise((res,rej)=>loader.load('models/'+name+'.glb?v=22',res,undefined,rej));return MODEL_CACHE[name]}
+function getModel(name){if(!MODEL_CACHE[name])MODEL_CACHE[name]=new Promise((res,rej)=>loader.load('models/'+name+'.glb?v=23',res,undefined,rej));return MODEL_CACHE[name]}
 function skinBox(root){root.updateMatrixWorld(true);const b=new THREE.Box3(),v=new THREE.Vector3();
   root.traverse(o=>{if(o.isSkinnedMesh){const p=o.geometry.attributes.position,st=Math.max(1,Math.floor(p.count/2500));for(let i=0;i<p.count;i+=st){v.fromBufferAttribute(p,i);o.applyBoneTransform(i,v);v.applyMatrix4(o.matrixWorld);b.expandByPoint(v)}}else if(o.isMesh)b.expandByObject(o)});return b}
 async function prep(name,len,opt={}){
@@ -543,11 +558,11 @@ async function prep(name,len,opt={}){
 const V3=()=>new THREE.Vector3();
 // ---- пролёт существа через экран ----
 function flyAcross(name,o){
-  let I=null,t=0;const T=o.T||6,dir=Math.random()<.5?1:-1,y0=o.y??1.2;const v=V3();setMode('screen',o.glow||'rgba(0,0,0,0)');
+  let I=null,t=0;const T=o.T||6,dir=Math.random()<.5?1:-1,y0=o.y??1.2;const v=V3();const PATH=o.path===false?(k=>0):pickPath(o.y==null||o.y>0);let py=null,px=null;setMode('screen',o.glow||'rgba(0,0,0,0)');
   prep(name,o.len,{clip:o.clip,ts:o.ts,mat:o.mat,sub:o.sub,strip:o.strip}).then(x=>{I=x}).catch(e=>console.warn(name,e));
   return addEffect({update(dt){if(!I)return t<15;t+=dt;I.mixer.update(dt);
     const k=clamp(t/T,0,1),e=k;const x=-dir*(o.from||17)+dir*(o.from||17)*2*e;
-    I.pivot.position.set(x,y0+Math.sin(t*(o.bobF||1.6))*(o.bob??.5),o.z??-2);I.pivot.rotation.set(o.pitch||0,dir>0?Math.PI/2:-Math.PI/2,Math.sin(t*1.6)*(o.roll??.06)*dir);
+    const yy=y0+PATH(k)+Math.sin(t*(o.bobF||1.6))*(o.bob??.5);const pitch=py==null?0:Math.atan2(yy-py,Math.max(.02,Math.abs(x-px)));py=yy;px=x;I.pivot.position.set(x,yy,o.z??-2);I.pivot.rotation.order='YXZ';I.pivot.rotation.set(-clamp(pitch,-.6,.6)*.8+(o.pitch||0),dir>0?Math.PI/2:-Math.PI/2,Math.sin(t*1.6)*(o.roll??.06)*dir);
     I.fade(Math.min(1,k/.06,(1-k)/.08)*(o.op||1));if(o.mat&&o.mat.userData.u)o.mat.userData.u.uT.value=t;
     if(o.trail)for(let i=0;i<o.trail;i++){I.sample(v);o.fire?emit(v,new THREE.Vector3(-dir*rnd(.5,2),rnd(.4,2.2),rnd(-.5,.5)),Math.random()<.4?'#fff1b0':'#ff8a2a',rnd(.25,.6),rnd(.5,1.2),{c2:'#ff2a0a',g:.6}):emit(v,new THREE.Vector3(-dir*rnd(.2,1),rnd(-.2,.4),rnd(-.3,.3)),o.spark||'#cfefff',rnd(.1,.25),rnd(.5,1.2))}
     return t<T},dispose(){I&&I.dispose()}});
@@ -616,9 +631,9 @@ function badgerModelFinale(){const v=V3();let sw=false;
 // ---- мини-сцена с моделью внутри элемента (кубок в лобби, дракон у вопроса) ----
 async function miniStage(el,name,o={}){
   const g=await getModel(name);if(!el.isConnected)return;const cv=document.createElement('canvas');cv.className='mapcv';el.appendChild(cv);
-  let r;try{r=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true})}catch(e){cv.remove();return}
+  let r;try{r=virtR(cv)}catch(e){cv.remove();return}
   r.setPixelRatio(Math.min(2,devicePixelRatio||1));r.setClearColor(0,0);r.toneMapping=THREE.ACESFilmicToneMapping;r.outputColorSpace=THREE.SRGBColorSpace;
-  const sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(30,1,.01,1000);try{sc.environment=new THREE.PMREMGenerator(r).fromScene(new RoomEnvironment(),.04).texture}catch(e){}
+  const sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(30,1,.01,1000);sc.environment=sharedEnv();
   sc.add(new THREE.HemisphereLight(0xdfe8ff,0x302040,o.hemi??1.2));const k=new THREE.DirectionalLight(0xffffff,o.key??2.2);k.position.set(2,4,3);sc.add(k);
   const rim=new THREE.DirectionalLight(o.rimCol??0x88c8ff,o.rim??1.5);rim.position.set(-3,2,-4);sc.add(rim);
   const root=SkeletonUtils.clone(g.scene);root.traverse(x=>{if(x.isMesh)x.frustumCulled=false});
@@ -671,7 +686,7 @@ function trainPass(){let I=null,t=0;const T=8.5,dir=window.__trainDir||(Math.ran
     return t<T},dispose(){I&&I.dispose();scene.remove(D,Hm)}});
 }
 // ---- Гарри на метле гонится за снитчем ----
-function quidditchChase(){let H=null,S=null,t=0;const T=6.2,dir=Math.random()<.5?1:-1,v=V3();setMode('screen','rgba(255,210,90,.5)');
+function quidditchChase(){let H=null,S=null,t=0;const T=4.2,dir=Math.random()<.5?1:-1,v=V3();setMode('screen','rgba(255,210,90,.5)');
   const D=new THREE.DirectionalLight(0xfff0dc,2.2);D.position.set(2,6,8);const Hm=new THREE.HemisphereLight(0xdfe8ff,0x302040,1.1);scene.add(D,Hm);
   prep('Quidditch',5.6,{byHeight:false,clip:2,ts:1}).then(x=>{H=x}).catch(e=>console.warn(e));prep('Snitch',2.2,{}).then(x=>{S=x}).catch(e=>console.warn(e));
   const path=k=>new THREE.Vector3(dir*(-18+36*k),1.2+Math.sin(k*TAU*1.3)*2.2,-1+Math.sin(k*TAU*.7)*2);

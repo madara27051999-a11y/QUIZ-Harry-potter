@@ -301,18 +301,27 @@ function firePal(){if(FIREPAL)return FIREPAL;const cols=[[255,250,220],[255,236,
     gr.addColorStop(0,`rgba(${c},1)`);gr.addColorStop(.35,`rgba(${c},.55)`);gr.addColorStop(1,`rgba(${c},0)`);g.fillStyle=gr;g.fillRect(0,0,64,64);FIREPAL.push(s)}
   SMOKE=document.createElement('canvas');SMOKE.width=SMOKE.height=64;const g=SMOKE.getContext('2d');const gr=g.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,'rgba(40,30,30,.8)');gr.addColorStop(1,'rgba(40,30,30,0)');g.fillStyle=gr;g.fillRect(0,0,64,64);
   return FIREPAL}
+// Инсендио: огненный смерч быстро проносится по низу экрана и исчезает
 function incendio(){
   const dir=Math.random()<.5,wx=dir?W*.08:W*.92,wy=H*.96;showName('Инсендио!');firePal();
-  // струя бьёт вверх вдоль края экрана и улетает за его пределы — вопрос и ответы не закрывает
-  wandCast(wx,wy,dir,(tx,ty)=>{const X2=dir?W*.2:W*.8,Y2=-H*.25;const ang=Math.atan2(Y2-ty,X2-tx);const F=[];let T=0;
-    start({dur:2000,custom:(t,now,dt)=>{T+=dt/60;const jet=t<.42,sc=Math.min(W,H)/900;
-      if(jet)for(let i=0;i<26*dt;i++){const a=ang+(Math.random()-.5)*.13,v=(26+Math.random()*12)*sc;F.push({x:tx+Math.cos(ang)*12,y:ty+Math.sin(ang)*12,vx:Math.cos(a)*v,vy:Math.sin(a)*v,r:(8+Math.random()*12)*sc,a:0,L:.38+Math.random()*.25,s:Math.random()*99})}
+  wandCast(wx,wy,dir,(tx,ty)=>{const sc=Math.min(W,H)/900,P=[],D=1.9;let T=0;
+    const Ht=H*.62,base=H*1.02;
+    const cxAt=u=>{const e=u<.5?2*u*u:1-Math.pow(-2*u+2,2)/2;return dir?tx+(W*1.25-tx)*e:tx-(tx+W*.25)*e};
+    start({dur:D*1000,custom:(t,now,dt)=>{T+=dt/60;const cx=cxAt(t),grow=Math.min(1,t/.18),fade=t>.82?Math.max(0,(1-t)/.18):1;
+      // рождаем частицы у основания вихря
+      for(let i=0;i<34*dt*grow;i++)P.push({th:Math.random()*TAU,h:Math.random()*.15,w:(5+Math.random()*4)*(Math.random()<.5?1:1),rise:.9+Math.random()*.9,r:(7+Math.random()*10)*sc,a:0,L:.55+Math.random()*.35,s:Math.random()*9});
+      // искры, вылетающие наружу
       c=mc;c.save();c.setTransform(DPR,0,0,DPR,0,0);c.globalCompositeOperation='lighter';
-      for(let i=F.length-1;i>=0;i--){const p=F[i];p.a+=dt/60/p.L;if(p.a>=1||p.y<-200){F.splice(i,1);continue}
-        p.vx*=Math.pow(.985,dt);p.vy*=Math.pow(.985,dt);p.vx+=Math.sin(p.y*.03+T*9+p.s)*.35*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;
-        const r=p.r*(.55+p.a*1.6)*(.85+.3*Math.sin(T*30+p.s*7)),k=Math.min(23,Math.floor(Math.pow(p.a,.75)*23));c.globalAlpha=(1-p.a)*.5;c.drawImage(FIREPAL[k],p.x-r,p.y-r,r*2,r*2)}
-      if(jet){const R=40*sc;c.globalAlpha=.4*(.8+.2*Math.random());c.drawImage(FIREPAL[6],tx-R,ty-R,R*2,R*2)}
-      c.restore();return}});});
+      // мягкое зарево под смерчем
+      c.globalAlpha=.22*fade*grow;const gR=Ht*.55;c.drawImage(FIREPAL[9],cx-gR,base-Ht*.55-gR*.9,gR*2,gR*1.8);
+      for(let i=P.length-1;i>=0;i--){const p=P[i];p.a+=dt/60/p.L;if(p.a>=1){P.splice(i,1);continue}
+        p.th+=p.w*dt/60*(1+p.h*.8);p.h+=p.rise*dt/60;
+        const R=(26+Math.pow(p.h,1.5)*Ht*.42)*grow*(.9+.1*Math.sin(T*6+p.s)),sway=Math.sin(p.h*5-T*7)*28*sc*p.h;
+        const x=cx+Math.cos(p.th)*R+sway,y=base-p.h*Ht,depth=(Math.sin(p.th)+1)/2;
+        const k=Math.min(23,Math.floor((p.h*.7+p.a*.5)*23)),r=p.r*(.7+p.h*1.3)*(.6+.4*depth);
+        c.globalAlpha=(1-p.a)*(.25+.45*depth)*fade;c.drawImage(FIREPAL[k],x-r,y-r,r*2,r*2)}
+      if(Math.random()<.9*dt)emit({x:cx+(Math.random()-.5)*80*sc,y:base-Math.random()*Ht*.8,vx:(Math.random()-.5)*6,vy:-2-Math.random()*3,g:.05,r:1.4+Math.random()*1.6,life:.7,max:.7,col:'#ffb347'});
+      c.restore()}});});
 }
 // Люмос Максима: шар света взлетает и озаряет экран
 function lumos(){
@@ -352,7 +361,7 @@ function featherCanvas(){if(FEATHER)return FEATHER;const Wd=1100,Hd=300,cv=docum
 function leviosa(){
   const dir=Math.random()<.5,wx=dir?W*.08:W*.92,wy=H*.96;showName('Вингардиум Левиоса!');const FC=featherCanvas();
   wandCast(wx,wy,dir,(tx,ty)=>{const x0=W*(dir?.4:.6),y0=H*.86;let px=null,py=null,T=0;
-    start({dur:5200,custom:(t,now,dt)=>{T+=dt/60;
+    start({dur:3200,custom:(t,now,dt)=>{T+=dt/60*1.5;
       const k=Math.min(1,t/.82),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
       // плавное парение: маятник + лёгкий переворот, как у настоящего пера
       const sw=Math.sin(T*1.7),x=x0+sw*W*.07+Math.sin(T*.6)*W*.02,y=y0-(y0-H*.32)*e+Math.cos(T*3.4)*H*.012;
