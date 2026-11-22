@@ -304,25 +304,16 @@ function firePal(){if(FIREPAL)return FIREPAL;const cols=[[255,250,220],[255,236,
   return FIREPAL}
 function incendio(){
   const dir=Math.random()<.5,wx=dir?W*.08:W*.92,wy=H*.96;showName('Инсендио!');firePal();
-  wandCast(wx,wy,dir,(tx,ty)=>{const X2=dir?W*.62:W*.38,Y2=H*.42;const ang=Math.atan2(Y2-ty,X2-tx),dist=Math.hypot(X2-tx,Y2-ty);let fireSnd=false;const F=[],S=[];let T=0;
-    start({dur:3600,custom:(t,now,dt)=>{T+=dt/60;const jet=t<.55,sc=Math.min(W,H)/900;
-      // струя пламени из палочки
-      if(jet)for(let i=0;i<22*dt;i++){const a=ang+(Math.random()-.5)*.16,v=(dist/34)*(.75+Math.random()*.5);F.push({x:tx+Math.cos(ang)*14,y:ty+Math.sin(ang)*14,vx:Math.cos(a)*v,vy:Math.sin(a)*v,r:(9+Math.random()*12)*sc,a:0,L:.5+Math.random()*.35,s:Math.random()*99,drag:.955})}
-      // вспышка и языки огня в точке удара
-      if(t>.12&&t<.72)for(let i=0;i<18*dt;i++){const rr=Math.pow(Math.random(),.7)*80*sc,q=Math.random()*TAU;F.push({x:X2+Math.cos(q)*rr*1.6,y:Y2+Math.sin(q)*rr*.5,vx:(Math.random()-.5)*1.5,vy:-(2.4+Math.random()*3.6)*sc,r:(20+Math.random()*26)*sc,a:0,L:.8+Math.random()*.7,s:Math.random()*99,drag:.975,up:1})}
-      c=mc;c.save();c.setTransform(DPR,0,0,DPR,0,0);
-      // дым (обычное смешивание)
-      c.globalCompositeOperation='source-over';
-      for(let i=S.length-1;i>=0;i--){const p=S[i];p.a+=dt/60/p.L;if(p.a>=1){S.splice(i,1);continue}p.x+=p.vx*dt+Math.sin(p.y*.02+T*2+p.s)*.4*dt;p.y+=p.vy*dt;p.vy*=.99;const r=p.r*(1+p.a*2.2);c.globalAlpha=.28*Math.sin(p.a*Math.PI);c.drawImage(SMOKE,p.x-r,p.y-r,r*2,r*2)}
-      c.globalCompositeOperation='lighter';
-      for(let i=F.length-1;i>=0;i--){const p=F[i];p.a+=dt/60/p.L;if(p.a>=1){if(Math.random()<.35)S.push({x:p.x,y:p.y,vx:p.vx*.2,vy:-1.2*sc,r:p.r*1.6,a:0,L:1.4+Math.random(),s:p.s});F.splice(i,1);continue}
-        p.vx*=Math.pow(p.drag,dt);p.vy*=Math.pow(p.drag,dt);p.vy-=(p.up?.06:.12)*dt*sc;p.vx+=Math.sin(p.y*.035+T*7+p.s)*.25*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;
-        const fl=.85+.3*Math.sin(T*30+p.s*7);const r=p.r*(p.up?(1-p.a*.65):(.6+p.a*1.9))*fl;const k=Math.min(23,Math.floor((p.up?5+p.a*18:Math.pow(p.a,.8)*23)));
-        c.globalAlpha=Math.min(1,(1-p.a)*1.4)*(p.up?.3:.45);c.drawImage(FIREPAL[k],p.x-r,p.y-r,r*2,r*2)}
-      // мягкое свечение на кончике палочки и в точке удара
-      const gl=(jet?1:Math.max(0,1-(t-.55)/.25))*(.8+.2*Math.random());if(gl>0){const R=46*sc;c.globalAlpha=.35*gl;c.drawImage(FIREPAL[6],tx-R,ty-R,R*2,R*2)}
-      const gh=t<.12?0:t<.75?1:Math.max(0,1-(t-.75)/.25);if(gh>0){const R=260*sc;c.globalAlpha=.16*gh*(.85+.15*Math.random());c.drawImage(FIREPAL[9],X2-R,Y2-R*.8,R*2,R*1.6)}
-      c.restore()}});});
+  // струя бьёт вверх вдоль края экрана и улетает за его пределы — вопрос и ответы не закрывает
+  wandCast(wx,wy,dir,(tx,ty)=>{const X2=dir?W*.2:W*.8,Y2=-H*.25;const ang=Math.atan2(Y2-ty,X2-tx);const F=[];let T=0;
+    start({dur:2000,custom:(t,now,dt)=>{T+=dt/60;const jet=t<.42,sc=Math.min(W,H)/900;
+      if(jet)for(let i=0;i<26*dt;i++){const a=ang+(Math.random()-.5)*.13,v=(26+Math.random()*12)*sc;F.push({x:tx+Math.cos(ang)*12,y:ty+Math.sin(ang)*12,vx:Math.cos(a)*v,vy:Math.sin(a)*v,r:(8+Math.random()*12)*sc,a:0,L:.38+Math.random()*.25,s:Math.random()*99})}
+      c=mc;c.save();c.setTransform(DPR,0,0,DPR,0,0);c.globalCompositeOperation='lighter';
+      for(let i=F.length-1;i>=0;i--){const p=F[i];p.a+=dt/60/p.L;if(p.a>=1||p.y<-200){F.splice(i,1);continue}
+        p.vx*=Math.pow(.985,dt);p.vy*=Math.pow(.985,dt);p.vx+=Math.sin(p.y*.03+T*9+p.s)*.35*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;
+        const r=p.r*(.55+p.a*1.6)*(.85+.3*Math.sin(T*30+p.s*7)),k=Math.min(23,Math.floor(Math.pow(p.a,.75)*23));c.globalAlpha=(1-p.a)*.5;c.drawImage(FIREPAL[k],p.x-r,p.y-r,r*2,r*2)}
+      if(jet){const R=40*sc;c.globalAlpha=.4*(.8+.2*Math.random());c.drawImage(FIREPAL[6],tx-R,ty-R,R*2,R*2)}
+      c.restore();return}});});
 }
 // Люмос Максима: шар света взлетает и озаряет экран
 function lumos(){

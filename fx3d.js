@@ -155,6 +155,7 @@ function batWing(len){
 }
 const GHOSTS={
   lynx:{n:'Рысь (Кингсли Бруствер)',model:'Lion',o:{sub:[0,38],strip:'ROOT',len:5.2,T:6,y:-2.2,z:-2,ts:1.9,bob:.03,bobF:6,roll:0}},
+  phoenixG:{n:'Феникс (Альбус Дамблдор)',model:'Phoenix',col:'#cfe8ff',o:{len:6,T:5.5,y:1.6,z:-2,bob:.5}},
   eagleG:{n:'Орёл',model:'Eagle',o:{len:8,T:6,y:1.4,z:-2,bob:.5}},
 };
 const KINDS={
@@ -173,7 +174,7 @@ function creature(kindKey,from,opt={}){
   const dir=opt.dirOverride||(from.x<innerWidth/2?1:-1);
   const start=screenToWorld(from.x,from.y,0),endX=dir*20,z0=0,z1=-4,y0=K.bird?.8:K.fly?1.2:-1.6;
   const keys=models.horseKeys,m=I.meshes[0],extras={};const v=new THREE.Vector3(),v2=new THREE.Vector3(),v3=new THREE.Vector3(),UP=new THREE.Vector3(0,1,0);
-  if(K.horn){const hm=ghostMat('#ffe7a0',{rim:'#ffffff',core:.9,pow:1.2});const hg=new THREE.ConeGeometry(.07,1,24,1);hg.translate(0,.5,0);
+  if(K.horn){const hm=ghostMat('#ffe7a0',{rim:'#ffffff',core:.9,pow:1.2});const hg=new THREE.ConeGeometry(.09,1.15,24,1);hg.translate(0,.42,0);
     const pos=hg.attributes.position;for(let i=0;i<pos.count;i++){const y=pos.getY(i),a=Math.atan2(pos.getZ(i),pos.getX(i));const r=Math.hypot(pos.getX(i),pos.getZ(i))*(1+.25*Math.sin(a*2+y*40));pos.setX(i,Math.cos(a)*r);pos.setZ(i,Math.sin(a)*r)}hg.computeVertexNormals();
     extras.horn=new THREE.Mesh(hg,hm);extras.horn.scale.setScalar(.85/I.scale);m.add(extras.horn);extras.hm=hm}
   if(K.antlers){const am=ghostMat(K.col,{rim:'#ffffff',core:.6,pow:1.2});const ag=new THREE.Group();
@@ -195,7 +196,7 @@ function creature(kindKey,from,opt={}){
     I.pivot.scale.setScalar(.08+.92*grow);
     const fade=k<.06?k/.06:k>.88?(1-k)/.12:1;mat.opacity=(K.fire?1:.9)*fade;if(extras.hm)extras.hm.opacity=fade;
     if(extras.horn){morphVertex(m,keys.ear,v);morphVertex(m,keys.nose,v2);v3.subVectors(v2,v).normalize();
-      extras.horn.position.copy(v).lerp(v2,.2);extras.horn.position.y-=13;const d=v3.clone().multiplyScalar(.8).add(UP.clone().multiplyScalar(1)).normalize();extras.horn.quaternion.setFromUnitVectors(UP,d)}
+      extras.horn.position.copy(v).lerp(v2,.22);extras.horn.position.y-=16;const d=v3.clone().multiplyScalar(.8).add(UP.clone().multiplyScalar(1)).normalize();extras.horn.quaternion.setFromUnitVectors(UP,d)}
     if(extras.ant){morphVertex(m,keys.ear,v);morphVertex(m,keys.nose,v2);v3.subVectors(v2,v);extras.ant.position.copy(v).lerp(v2,.12);extras.ant.position.y-=9;extras.ant.rotation.set(0,Math.atan2(v3.x,v3.z),0,'YXZ');extras.ant.rotateX(-.25);extras.am.opacity=fade*.95;extras.am.userData.u&&(extras.am.userData.u.uT.value=t)}
     if(extras.wings){morphVertex(m,keys.wither,v);const fl=Math.sin(t*(K.wings==='bat'?5:4.2));
       for(const w of extras.wings){w.g.position.copy(v);w.g.position.y-=K.wings==='bat'?14:10;w.g.position.x+=w.s*4;w.g.rotation.y=.3;w.update(t,.32,.62,K.wings==='bat'?4.6:3.8);w.mat.opacity=fade*(K.wings==='bat'?.9:1);w.mat.userData.u&&(w.mat.userData.u.uT.value=t)}}
@@ -519,7 +520,7 @@ async function mapInto(el){
 
 // ===== Модели из Sketchfab (авторы — в подписи на главном экране) =====
 const MODEL_CACHE={};
-function getModel(name){if(!MODEL_CACHE[name])MODEL_CACHE[name]=new Promise((res,rej)=>loader.load('models/'+name+'.glb?v=20',res,undefined,rej));return MODEL_CACHE[name]}
+function getModel(name){if(!MODEL_CACHE[name])MODEL_CACHE[name]=new Promise((res,rej)=>loader.load('models/'+name+'.glb?v=21',res,undefined,rej));return MODEL_CACHE[name]}
 function skinBox(root){root.updateMatrixWorld(true);const b=new THREE.Box3(),v=new THREE.Vector3();
   root.traverse(o=>{if(o.isSkinnedMesh){const p=o.geometry.attributes.position,st=Math.max(1,Math.floor(p.count/2500));for(let i=0;i<p.count;i+=st){v.fromBufferAttribute(p,i);o.applyBoneTransform(i,v);v.applyMatrix4(o.matrixWorld);b.expandByPoint(v)}}else if(o.isMesh)b.expandByObject(o)});return b}
 async function prep(name,len,opt={}){
@@ -553,7 +554,7 @@ function flyAcross(name,o){
 }
 // ---- стая корнуэльских пикси ----
 function pixies(){
-  setMode('screen','rgba(80,160,255,.6)');const N=innerWidth<700?5:8,P=[];let t=0;const T=6.5,v=V3();
+  setMode('screen','rgba(80,160,255,.6)');const N=innerWidth<700?5:8,P=[];let t=0;const T=4.2,v=V3();
   for(let i=0;i<N;i++)prep('Pixie',rnd(1.9,2.6),{byHeight:true,clip:i%3?'anim051':'anim040',ts:rnd(1.2,1.8)}).then(x=>{x.o={ph:rnd(0,TAU),y:rnd(-1.5,3.5),z:rnd(-4,3),sp:rnd(.8,1.3),d:rnd(0,.9)};P.push(x)});
   try{if(window.__hpqSound!==false&&typeof FX2!=='undefined'){}}catch(e){}
   return addEffect({update(dt){t+=dt;for(const I of P){const o=I.o;I.mixer.update(dt);const u=clamp((t-o.d)/(T-1.2),0,1);
@@ -626,6 +627,7 @@ async function miniStage(el,name,o={}){
   const b=skinBox(root),sz=b.getSize(new THREE.Vector3()),c=b.getCenter(new THREE.Vector3());const s=1/Math.max(sz.x,sz.y,sz.z);
   root.scale.setScalar(s);root.position.set(-c.x*s,-c.y*s,-c.z*s);const W=sz.x*s,H=sz.y*s,D=sz.z*s;
   const pivot=new THREE.Group();pivot.add(root);sc.add(pivot);
+  const rings=o.rings?o.rings.map(n=>root.getObjectByName(n)).filter(Boolean):null;
   const R=Math.hypot(W,H,D)/2;
   let extra=null;if(o.sparks){const N=120,pg=new THREE.BufferGeometry(),pp=new Float32Array(N*3),pd=[];for(let i=0;i<N;i++)pd.push({l:0});pg.setAttribute('position',new THREE.BufferAttribute(pp,3));
     sc.add(new THREE.Points(pg,new THREE.PointsMaterial({color:0x8fd0ff,size:H*.03,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false})));const bl=new THREE.PointLight(0x6fb8ff,2,H*1.5);bl.position.set(0,H*.3,0);sc.add(bl);
@@ -637,6 +639,8 @@ async function miniStage(el,name,o={}){
   const clk=new THREE.Clock();let t=0;
   const loop=()=>{if(!el.isConnected){ro.disconnect();r.dispose();return}const dt=Math.min(.05,clk.getDelta());t+=dt;mixer.update(dt);
     pivot.rotation.y=o.spin?t*o.spin:(o.yaw??0)+Math.sin(t*.35)*(o.sway??.5);pivot.position.y=Math.sin(t*1.2)*H*(o.bob??.02);
+    if(o.rock){pivot.rotation.z=Math.sin(t*1.3)*.12;pivot.rotation.x=Math.sin(t*.9)*.06}
+    if(rings)rings.forEach((n,i)=>{const sp=(o.ringSp||1)*(1.2+i*.5);if(i%3===0)n.rotation.y+=dt*sp;else if(i%3===1)n.rotation.x+=dt*sp;else n.rotation.z+=dt*sp});
     if(o.hop){const ph=(t%2.2)/2.2;if(ph>.62){const k=(ph-.62)/.38;pivot.position.y+=Math.sin(k*Math.PI)*H*.55;pivot.rotation.z=Math.sin(k*Math.PI*6)*.12*(1-k);pivot.rotation.x=-Math.sin(k*Math.PI)*.25;pivot.scale.setScalar(1)}else{pivot.rotation.z=Math.sin(t*40)*.015;pivot.rotation.x=0;const sq=ph<.5?0:Math.sin((ph-.5)/.12*Math.PI)*.08;pivot.scale.set(1+sq,1-sq,1+sq)}}extra&&extra(dt,t);
     if(o.fadeIn)cv.style.opacity=Math.min(1,t/o.fadeIn);r.render(sc,cam);requestAnimationFrame(loop)};
   el.classList.add('live');loop();
@@ -648,6 +652,10 @@ const STAGE={
   Prowler:{clip:'Walk',ts:.7,yaw:-.9,sway:.5,fitH:.33,fitW:.38,camUp:.25,rim:2.2,rimCol:0xff9a5a,bob:0,fadeIn:.8},
   Train:{yaw:-1.05,sway:.3,fitH:.3,fitW:.36,camUp:.12,rim:1.6,rimCol:0xffd08a,bob:.004,fadeIn:.8},
   Quidditch:{clip:2,yaw:-1.3,sway:.45,fitH:.36,fitW:.36,camUp:.05,rim:2,rimCol:0xffd36a,bob:.05,fadeIn:.8},
+  SortingHat:{yaw:.2,sway:.6,fitH:.5,fitW:.5,camUp:.12,rim:1.6,rimCol:0xffd08a,bob:.02,rock:true,fadeIn:.6},
+  TimeTurner:{yaw:0,sway:.5,fitH:.5,fitW:.5,camUp:.05,rim:2.2,rimCol:0xffd36a,bob:.02,rings:['Object_6','Object_12','Object_18'],ringSp:1.4,fadeIn:.4},
+  ChocoFrog:{yaw:.4,sway:.5,fitH:.3,fitW:.33,camUp:.45,rim:1.8,rimCol:0xc89aff,bob:0,hop:true,fadeIn:.6},
+  Quaffle:{spin:.7,fitH:.62,fitW:.62,camUp:.1,rim:2,rimCol:0xffa060,bob:.04,fadeIn:.6},
   MonsterBook:{yaw:.35,sway:.35,fitH:.42,fitW:.42,camUp:.55,rim:1.8,rimCol:0xa0ff9a,bob:0,hop:true,fadeIn:.6}};
 function dragonInto(el){const n=el.dataset.dragon||'Dragon';return miniStage(el,n,STAGE[n]||STAGE.Dragon)}
 // ---- Хогвартс-экспресс проезжает ----
@@ -694,7 +702,7 @@ const API={ready:false,
     else creature(k,{x:wx,y:innerHeight*.6});
     return true},
   transition(){if(!API.ready)return false;const N=(s)=>{if(typeof FX2!=='undefined')FX2.showName(s)};const has2=typeof FX2!=='undefined';
-    const pool=[['pixies',14],['phoenix',12],['chase',5],['snitch',8],['keys',has2?8:0],['spell',has2?16:0],['patronus',37]];
+    const pool=[['pixies',6],['phoenix',12],['chase',5],['snitch',8],['keys',has2?8:0],['spell',has2?16:0],['patronus',37]];
     let pick='patronus';for(let tries=0;tries<8;tries++){let r=Math.random()*pool.reduce((a,b)=>a+b[1],0);for(const [k,w] of pool){if((r-=w)<0){pick=k;break}}if(pick!==API.lastT)break}
     if(pick==='spell'){const ks=['avada','expelliarmus','incendio','leviosa'].filter(k=>k!==API.lastSpell);const s=ks[Math.random()*ks.length|0];API.lastSpell=s;if(API.lastT==='spell'&&API.lastSpell===s)pick='patronus';else{API.lastT='spell';FX2.castSpell(s);return true}}
     API.lastT=pick;
