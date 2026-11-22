@@ -94,4 +94,4 @@ function roar(house){try{if(!fxOn())return;const actx=fxAC();const t=actx.curren
   else{[0,.18,.36].forEach(dl=>fxBeep(220,.12,'square',.06,dl))}
 }catch(e){}}
 
-function patronusFly(){if(window.FX3D&&FX3D.ready&&FX3D.transition())return;if(typeof FX2!=='undefined')FX2.patronus()}
+function patronusFly(){if(window.FX3D&&FX3D.ready&&FX3D.spiders&&/(^|[^а-яё])рон(а|у|ом|е)?([^а-яё]|$)|паук|арагог|акромантул/i.test(window.__fxQText||'')){FX3D.spiders();return}if(window.FX3D&&FX3D.ready&&FX3D.transition())return;if(typeof FX2!=='undefined')FX2.patronus()}

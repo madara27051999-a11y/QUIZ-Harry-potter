@@ -486,7 +486,7 @@ async function mapInto(el){
 
 // ===== Модели из Sketchfab (авторы — в подписи на главном экране) =====
 const MODEL_CACHE={};
-function getModel(name){if(!MODEL_CACHE[name])MODEL_CACHE[name]=new Promise((res,rej)=>loader.load('models/'+name+'.glb?v=16',res,undefined,rej));return MODEL_CACHE[name]}
+function getModel(name){if(!MODEL_CACHE[name])MODEL_CACHE[name]=new Promise((res,rej)=>loader.load('models/'+name+'.glb?v=17',res,undefined,rej));return MODEL_CACHE[name]}
 function skinBox(root){root.updateMatrixWorld(true);const b=new THREE.Box3(),v=new THREE.Vector3();
   root.traverse(o=>{if(o.isSkinnedMesh){const p=o.geometry.attributes.position,st=Math.max(1,Math.floor(p.count/2500));for(let i=0;i<p.count;i+=st){v.fromBufferAttribute(p,i);o.applyBoneTransform(i,v);v.applyMatrix4(o.matrixWorld);b.expandByPoint(v)}}else if(o.isMesh)b.expandByObject(o)});return b}
 async function prep(name,len,opt={}){
@@ -587,7 +587,7 @@ async function miniStage(el,name,o={}){
   sc.add(new THREE.HemisphereLight(0xdfe8ff,0x302040,o.hemi??1.2));const k=new THREE.DirectionalLight(0xffffff,o.key??2.2);k.position.set(2,4,3);sc.add(k);
   const rim=new THREE.DirectionalLight(o.rimCol??0x88c8ff,o.rim??1.5);rim.position.set(-3,2,-4);sc.add(rim);
   const root=SkeletonUtils.clone(g.scene);root.traverse(x=>{if(x.isMesh)x.frustumCulled=false});
-  const mixer=new THREE.AnimationMixer(root);if(g.animations[0]&&g.animations[0].duration>.05){const a=mixer.clipAction(g.animations[0]);a.timeScale=o.ts||1;a.play()}mixer.update(.001);
+  const mixer=new THREE.AnimationMixer(root);const clip=typeof o.clip==='string'?g.animations.find(c=>c.name.includes(o.clip)):g.animations[o.clip||0];if(clip&&clip.duration>.05){const a=mixer.clipAction(clip);a.timeScale=o.ts||1;a.play()}mixer.update(.001);
   // нормализуем размер: высота/габарит = 1, центр в нуле
   const b=skinBox(root),sz=b.getSize(new THREE.Vector3()),c=b.getCenter(new THREE.Vector3());const s=1/Math.max(sz.x,sz.y,sz.z);
   root.scale.setScalar(s);root.position.set(-c.x*s,-c.y*s,-c.z*s);const W=sz.x*s,H=sz.y*s,D=sz.z*s;
@@ -602,12 +602,54 @@ async function miniStage(el,name,o={}){
     cam.position.set(0,d*(o.camUp??0),d);cam.lookAt(0,0,0)};resize();const ro=new ResizeObserver(resize);ro.observe(el);
   const clk=new THREE.Clock();let t=0;
   const loop=()=>{if(!el.isConnected){ro.disconnect();r.dispose();return}const dt=Math.min(.05,clk.getDelta());t+=dt;mixer.update(dt);
-    pivot.rotation.y=o.spin?t*o.spin:(o.yaw??0)+Math.sin(t*.35)*(o.sway??.5);pivot.position.y=Math.sin(t*1.2)*H*(o.bob??.02);extra&&extra(dt,t);
+    pivot.rotation.y=o.spin?t*o.spin:(o.yaw??0)+Math.sin(t*.35)*(o.sway??.5);pivot.position.y=Math.sin(t*1.2)*H*(o.bob??.02);
+    if(o.hop){const ph=(t%2.2)/2.2;if(ph>.62){const k=(ph-.62)/.38;pivot.position.y+=Math.sin(k*Math.PI)*H*.55;pivot.rotation.z=Math.sin(k*Math.PI*6)*.12*(1-k);pivot.rotation.x=-Math.sin(k*Math.PI)*.25;pivot.scale.setScalar(1)}else{pivot.rotation.z=Math.sin(t*40)*.015;pivot.rotation.x=0;const sq=ph<.5?0:Math.sin((ph-.5)/.12*Math.PI)*.08;pivot.scale.set(1+sq,1-sq,1+sq)}}extra&&extra(dt,t);
     if(o.fadeIn)cv.style.opacity=Math.min(1,t/o.fadeIn);r.render(sc,cam);requestAnimationFrame(loop)};
   el.classList.add('live');loop();
 }
 function trophyInto(el){return miniStage(el,'Cup',{spin:.5,sparks:true,fitH:.56,bob:.015})}
-function dragonInto(el){return miniStage(el,el.dataset.dragon||'Dragon',{yaw:-.7,sway:.45,ts:.8,fitH:.36,fitW:.4,camUp:.15,rim:2.2,rimCol:0xff9a5a,bob:.03,fadeIn:.8})}
+const STAGE={
+  Dragon:{yaw:-.7,sway:.45,ts:.8,fitH:.36,fitW:.4,camUp:.15,rim:2.2,rimCol:0xff9a5a,bob:.03,fadeIn:.8},
+  IceDragon:{yaw:-.7,sway:.45,ts:.8,fitH:.36,fitW:.4,camUp:.15,rim:2.2,rimCol:0x9fd0ff,bob:.03,fadeIn:.8},
+  Prowler:{clip:'Walk',ts:.7,yaw:-.9,sway:.5,fitH:.33,fitW:.38,camUp:.25,rim:2.2,rimCol:0xff9a5a,bob:0,fadeIn:.8},
+  Train:{yaw:-1.05,sway:.3,fitH:.3,fitW:.36,camUp:.12,rim:1.6,rimCol:0xffd08a,bob:.004,fadeIn:.8},
+  Quidditch:{clip:2,yaw:-1.3,sway:.45,fitH:.36,fitW:.36,camUp:.05,rim:2,rimCol:0xffd36a,bob:.05,fadeIn:.8},
+  MonsterBook:{yaw:.35,sway:.35,fitH:.42,fitW:.42,camUp:.55,rim:1.8,rimCol:0xa0ff9a,bob:0,hop:true,fadeIn:.6}};
+function dragonInto(el){const n=el.dataset.dragon||'Dragon';return miniStage(el,n,STAGE[n]||STAGE.Dragon)}
+// ---- Хогвартс-экспресс проезжает ----
+function trainPass(){let I=null,t=0;const T=8.5,dir=window.__trainDir||(Math.random()<.5?1:-1),v=V3();setMode('screen','rgba(255,200,120,.25)');
+  const D=new THREE.DirectionalLight(0xfff0dc,2.2);D.position.set(3,6,8);const Hm=new THREE.HemisphereLight(0xcfd8ff,0x302030,1);scene.add(D,Hm);
+  prep('Train',17,{clip:0,ts:2}).then(x=>{I=x}).catch(e=>console.warn(e));
+  return addEffect({update(dt){if(!I)return t<15;t+=dt;I.mixer.update(dt);const k=t/T;const x=dir*(-26+52*k);
+    I.pivot.position.set(x,-4.3+Math.sin(t*14)*.015,-2);I.pivot.rotation.set(0,dir>0?Math.PI/2:-Math.PI/2,0);I.fade(Math.min(1,k/.04,(1-k)/.04));
+    // дым из трубы: передняя часть паровоза (локальная +z) сверху
+    v.set(0,I.size.y*.98,I.size.z*.34*(I.front||1));v.applyAxisAngle(new THREE.Vector3(0,1,0),I.pivot.rotation.y).add(I.pivot.position);
+    for(let i=0;i<3;i++)emit(v.clone().add(new THREE.Vector3(rnd(-.15,.15),0,rnd(-.15,.15))),new THREE.Vector3(-dir*rnd(1.5,3),rnd(1.5,3),rnd(-.4,.4)),Math.random()<.5?'#d9dde6':'#a9b0bd',rnd(1,2.2),rnd(1.4,2.4),{drag:.97,g:.4});
+    if(Math.random()<.5)emit(new THREE.Vector3(x+rnd(-6,6),-4.3,-2+rnd(-.6,.6)),new THREE.Vector3(rnd(-.5,.5),rnd(.2,.6),0),'#ffb35a',rnd(.08,.16),rnd(.3,.6));
+    return t<T},dispose(){I&&I.dispose();scene.remove(D,Hm)}});
+}
+// ---- Гарри на метле гонится за снитчем ----
+function quidditchChase(){let H=null,S=null,t=0;const T=6.2,dir=Math.random()<.5?1:-1,v=V3();setMode('screen','rgba(255,210,90,.5)');
+  const D=new THREE.DirectionalLight(0xfff0dc,2.2);D.position.set(2,6,8);const Hm=new THREE.HemisphereLight(0xdfe8ff,0x302040,1.1);scene.add(D,Hm);
+  prep('Quidditch',5.6,{byHeight:false,clip:2,ts:1}).then(x=>{H=x}).catch(e=>console.warn(e));prep('Snitch',2.2,{}).then(x=>{S=x}).catch(e=>console.warn(e));
+  const path=k=>new THREE.Vector3(dir*(-18+36*k),1.2+Math.sin(k*TAU*1.3)*2.2,-1+Math.sin(k*TAU*.7)*2);
+  return addEffect({update(dt){if(!H||!S)return t<15;t+=dt;H.mixer.update(dt);S.mixer.update(dt);const k=t/T;
+    const ps=path(Math.min(1.2,k+.16)),ph=path(k);S.pivot.position.copy(ps).add(new THREE.Vector3(0,Math.sin(t*9)*.15,0));
+    H.pivot.position.copy(ph);const d=path(k+.01).sub(ph);H.pivot.rotation.set(0,Math.atan2(d.x,d.z)+(H.yawFix||0),-Math.atan2(d.y,Math.abs(d.x))*.6*dir);
+    H.fade(Math.min(1,k/.05,(1-k)/.06));S.fade(Math.min(1,k/.05,(1-k)/.06));
+    for(let i=0;i<2;i++){v.copy(S.pivot.position);emit(v,new THREE.Vector3(rnd(-.3,.3),rnd(-.3,.3),rnd(-.3,.3)),Math.random()<.5?'#fff2b0':'#ffc94a',rnd(.06,.16),rnd(.3,.7))}
+    if(Math.random()<.6){H.sample(v);emit(v,new THREE.Vector3(-dir*rnd(.5,1.5),rnd(-.2,.3),rnd(-.3,.3)),'#ffcf7a',rnd(.08,.2),rnd(.4,.9))}
+    return t<T},dispose(){H&&H.dispose();S&&S.dispose();scene.remove(D,Hm)}});
+}
+// ---- пауки перебегают ----
+function spiders(){const P=[];let t=0;const T=5.5,dir=Math.random()<.5?1:-1;setMode('screen','rgba(0,0,0,0)');
+  const D=new THREE.DirectionalLight(0xfff0dc,2);D.position.set(2,8,6);const Hm=new THREE.HemisphereLight(0xdfe8ff,0x302040,1.2);scene.add(D,Hm);
+  const N=innerWidth<700?5:9;
+  for(let i=0;i<N;i++)prep('Spider',i===0?6:rnd(2.8,4.2),{clip:'Run',ts:rnd(1.6,2.4)}).then(x=>{x.mats.forEach(m=>{if(m.color&&!m.userData.tint){m.userData.tint=1;m.color.multiplyScalar(.42)}});x.o={y:-3.25+rnd(-.2,.5),z:rnd(-3,4),d:rnd(0,1.6),sp:rnd(.85,1.25),w:rnd(0,TAU)};P.push(x)}).catch(e=>console.warn(e));
+  return addEffect({update(dt){t+=dt;for(const I of P){const o=I.o;I.mixer.update(dt);const k=clamp((t-o.d)/(T-1.8)*o.sp,0,1);
+      const x=dir*(-17+34*k),z=o.z+Math.sin(t*2+o.w)*.6;I.pivot.position.set(x,o.y,z);I.pivot.rotation.set(0,(dir>0?Math.PI/2:-Math.PI/2)+(I.yawFix||0)+Math.sin(t*3+o.w)*.15,0);I.fade(k>0&&k<1?1:0)}
+    return t<T},dispose(){P.forEach(I=>I.dispose());scene.remove(D,Hm)}});
+}
 
 const API={ready:false,
   patronus(){if(!API.ready)return false;const keys=Object.keys(KINDS).filter(k=>k!==lastKind);const k=keys[Math.random()*keys.length|0];lastKind=k;const K=KINDS[k];
@@ -618,11 +660,13 @@ const API={ready:false,
   transition(){if(!API.ready)return false;const r=Math.random();const N=(s)=>{if(typeof FX2!=='undefined')FX2.showName(s)};
     if(r<.14){N('Корнуэльские пикси');pixies();return true}
     if(r<.26){N('Феникс');flyAcross('Phoenix',{len:6,T:6.5,y:1.8,trail:10,fire:true,glow:'rgba(255,140,40,.8)'});return true}
-    if(r<.54){N('Золотой снитч');snitchModel();return true}
+    if(r<.40){N('Хогвартс-экспресс');trainPass();return true}
+    if(r<.50){N('Квиддич');quidditchChase();return true}
+    if(r<.56){N('Золотой снитч');snitchModel();return true}
     if(r<.62&&typeof FX2!=='undefined'&&FX2.flyingKeys){FX2.flyingKeys();return true}
     if(r<.74&&typeof FX2!=='undefined'&&FX2.castSpell){const ks=['avada','expelliarmus','incendio','leviosa','protego'];FX2.castSpell(ks[Math.random()*ks.length|0]);return true}
     return API.patronus()},
-  pixies(){pixies()},phoenix(){flyAcross('Phoenix',{len:6,T:6.5,y:1.8,trail:10,fire:true,glow:'rgba(255,140,40,.8)'})},iceDragon(){flyAcross('IceDragon',{len:15,T:7,y:0,z:-6,bob:.8,bobF:1,trail:3,spark:'#bfe6ff',glow:'rgba(150,200,255,.35)'})},dragon(){flyAcross('Dragon',{len:13,T:7,y:-.5,z:-6,bob:.6,glow:'rgba(0,0,0,0)'})},snitchM(){snitchModel()},
+  pixies(){pixies()},train(){trainPass()},chase(){quidditchChase()},spiders(){spiders()},phoenix(){flyAcross('Phoenix',{len:6,T:6.5,y:1.8,trail:10,fire:true,glow:'rgba(255,140,40,.8)'})},iceDragon(){flyAcross('IceDragon',{len:15,T:7,y:0,z:-6,bob:.8,bobF:1,trail:3,spark:'#bfe6ff',glow:'rgba(150,200,255,.35)'})},dragon(){flyAcross('Dragon',{len:13,T:7,y:-.5,z:-6,bob:.6,glow:'rgba(0,0,0,0)'})},snitchM(){snitchModel()},
   trophyInto(el){trophyInto(el).catch(e=>console.warn('cup',e))},dragonInto(el){dragonInto(el).catch(e=>console.warn('dragon',e))},
   clear(){for(const e of effects)e.update=()=>false;for(const d of pData)d.life=0;document.querySelectorAll('.frost,.spellflash').forEach(x=>x.remove())},
   mapInto(el){mapInto(el).catch(e=>console.warn('map',e))},
@@ -632,4 +676,4 @@ const API={ready:false,
   stop(e){if(e)e.update=()=>false},
 };
 window.FX3D=API;API._dbg=()=>({scene,camera,effects,renderer,canvas});
-if(init()){setMode('screen');canvas.style.display='none';preload().then(()=>{API.ready=true;window.dispatchEvent(new Event('fx3d-ready'))}).catch(e=>console.warn('fx3d models',e))}
+if(init()){setMode('screen');canvas.style.display='none';preload().then(()=>{API.ready=true;window.dispatchEvent(new Event('fx3d-ready'));setTimeout(()=>['Spider','Snitch','Pixie','Phoenix'].forEach(n=>getModel(n).catch(()=>{})),2500)}).catch(e=>console.warn('fx3d models',e))}
