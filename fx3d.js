@@ -155,7 +155,7 @@ function batWing(len){
 }
 const GHOSTS={
   lynx:{n:'Рысь (Кингсли Бруствер)',model:'Lion',o:{sub:[0,38],strip:'ROOT',len:5.2,T:6,y:-2.2,z:-2,ts:1.9,bob:.03,bobF:6,roll:0}},
-  phoenixG:{n:'Феникс (Альбус Дамблдор)',model:'Phoenix',col:'#cfe8ff',o:{len:6,T:5.5,y:1.6,z:-2,bob:.5}},
+  phoenixG:{n:'Феникс (Альбус Дамблдор)',model:'Phoenix',col:'#7fc4ff',core:.22,pow:1.7,o:{len:6.5,T:5.5,y:1.6,z:-2,bob:.5,trail:12}},
   eagleG:{n:'Орёл',model:'Eagle',o:{len:8,T:6,y:1.4,z:-2,bob:.5}},
 };
 const KINDS={
@@ -520,7 +520,7 @@ async function mapInto(el){
 
 // ===== Модели из Sketchfab (авторы — в подписи на главном экране) =====
 const MODEL_CACHE={};
-function getModel(name){if(!MODEL_CACHE[name])MODEL_CACHE[name]=new Promise((res,rej)=>loader.load('models/'+name+'.glb?v=21',res,undefined,rej));return MODEL_CACHE[name]}
+function getModel(name){if(!MODEL_CACHE[name])MODEL_CACHE[name]=new Promise((res,rej)=>loader.load('models/'+name+'.glb?v=22',res,undefined,rej));return MODEL_CACHE[name]}
 function skinBox(root){root.updateMatrixWorld(true);const b=new THREE.Box3(),v=new THREE.Vector3();
   root.traverse(o=>{if(o.isSkinnedMesh){const p=o.geometry.attributes.position,st=Math.max(1,Math.floor(p.count/2500));for(let i=0;i<p.count;i+=st){v.fromBufferAttribute(p,i);o.applyBoneTransform(i,v);v.applyMatrix4(o.matrixWorld);b.expandByPoint(v)}}else if(o.isMesh)b.expandByObject(o)});return b}
 async function prep(name,len,opt={}){
@@ -695,25 +695,24 @@ function spiders(){const P=[];let t=0;const T=5.5,dir=Math.random()<.5?1:-1;setM
 
 const API={ready:false,
   patronus(){if(!API.ready)return false;const keys=[...Object.keys(KINDS).filter(k=>k!=='phoenix'),...Object.keys(GHOSTS)].filter(k=>k!==lastKind);const k=keys[Math.random()*keys.length|0];lastKind=k;if(GHOSTS[k]){const G=GHOSTS[k];const dir=Math.random()<.5,wx=dir?innerWidth*.08:innerWidth*.92,wy=innerHeight*.96;
-      if(typeof FX2!=='undefined'&&FX2.wandCast){FX2.showName('Экспекто патронум!');FX2.wandCast(wx,wy,dir,(tx,ty)=>{FX2.showName('Патронус: '+G.n);vortex(tx,ty,'#cfefff');flyAcross(G.model,{...G.o,mat:ghostMat(G.col||'#a8dcff',{rim:'#f4fbff',core:.5,pow:1.3}),trail:5,spark:'#cfefff',glow:'rgba(150,210,255,.95)',op:.9})})}else flyAcross(G.model,{...G.o,mat:ghostMat('#a8dcff',{rim:'#f4fbff',core:.5,pow:1.3}),trail:5});return true}
+      if(typeof FX2!=='undefined'&&FX2.wandCast){FX2.showName('Экспекто патронум!');FX2.wandCast(wx,wy,dir,(tx,ty)=>{FX2.showName('Патронус: '+G.n);vortex(tx,ty,'#cfefff');flyAcross(G.model,{...G.o,mat:ghostMat(G.col||'#a8dcff',{rim:'#f4fbff',core:G.core??.5,pow:G.pow??1.3}),trail:G.o.trail||5,spark:'#cfefff',glow:'rgba(150,210,255,.95)',op:.9})})}else flyAcross(G.model,{...G.o,mat:ghostMat('#a8dcff',{rim:'#f4fbff',core:.5,pow:1.3}),trail:5});return true}
     const K=KINDS[k];
     const dir=Math.random()<.5,wx=dir?innerWidth*.08:innerWidth*.92,wy=innerHeight*.96;
     if(typeof FX2!=='undefined'&&FX2.wandCast){FX2.showName(K.fire?'Феникс':'Экспекто патронум!');FX2.wandCast(wx,wy,dir,(tx,ty)=>{FX2.showName(K.fire?'Феникс':'Патронус: '+K.n);vortex(tx,ty,K.fire?'#ffb040':'#cfefff');creature(k,{x:tx,y:ty})})}
     else creature(k,{x:wx,y:innerHeight*.6});
     return true},
   transition(){if(!API.ready)return false;const N=(s)=>{if(typeof FX2!=='undefined')FX2.showName(s)};const has2=typeof FX2!=='undefined';
-    const pool=[['pixies',6],['phoenix',12],['chase',5],['snitch',8],['keys',has2?8:0],['spell',has2?16:0],['patronus',37]];
+    const pool=[['pixies',6],['chase',5],['snitch',8],['keys',has2?8:0],['spell',has2?16:0],['patronus',37]];
     let pick='patronus';for(let tries=0;tries<8;tries++){let r=Math.random()*pool.reduce((a,b)=>a+b[1],0);for(const [k,w] of pool){if((r-=w)<0){pick=k;break}}if(pick!==API.lastT)break}
     if(pick==='spell'){const ks=['avada','expelliarmus','incendio','leviosa'].filter(k=>k!==API.lastSpell);const s=ks[Math.random()*ks.length|0];API.lastSpell=s;if(API.lastT==='spell'&&API.lastSpell===s)pick='patronus';else{API.lastT='spell';FX2.castSpell(s);return true}}
     API.lastT=pick;
     if(pick==='pixies'){N('Корнуэльские пикси');pixies();return true}
-    if(pick==='phoenix'){N('Феникс');flyAcross('Phoenix',{len:6,T:6.5,y:1.8,trail:10,fire:true,glow:'rgba(255,140,40,.8)'});return true}
     if(pick==='chase'){N('Квиддич');quidditchChase();return true}
     if(pick==='snitch'){N('Золотой снитч');snitchModel();return true}
     if(pick==='keys'){FX2.flyingKeys();return true}
     return API.patronus()},
-  ghost(k){const G=GHOSTS[k];flyAcross(G.model,{...G.o,mat:ghostMat(G.col||'#a8dcff',{rim:'#f4fbff',core:.5,pow:1.3}),trail:5,spark:'#cfefff',glow:'rgba(150,210,255,.95)',op:.9})},
-  pixies(){pixies()},train(){trainPass()},chase(){quidditchChase()},spiders(){spiders()},phoenix(){flyAcross('Phoenix',{len:6,T:6.5,y:1.8,trail:10,fire:true,glow:'rgba(255,140,40,.8)'})},iceDragon(){flyAcross('IceDragon',{len:15,T:7,y:0,z:-6,bob:.8,bobF:1,trail:3,spark:'#bfe6ff',glow:'rgba(150,200,255,.35)'})},dragon(){flyAcross('Dragon',{len:13,T:7,y:-.5,z:-6,bob:.6,glow:'rgba(0,0,0,0)'})},snitchM(){snitchModel()},
+  ghost(k){const G=GHOSTS[k];flyAcross(G.model,{...G.o,mat:ghostMat(G.col||'#a8dcff',{rim:'#f4fbff',core:G.core??.5,pow:G.pow??1.3}),trail:G.o.trail||5,spark:'#cfefff',glow:'rgba(150,210,255,.95)',op:.9})},
+  pixies(){pixies()},train(){trainPass()},chase(){quidditchChase()},spiders(){spiders()},phoenix(){API.ghost('phoenixG')},iceDragon(){flyAcross('IceDragon',{len:15,T:7,y:0,z:-6,bob:.8,bobF:1,trail:3,spark:'#bfe6ff',glow:'rgba(150,200,255,.35)'})},dragon(){flyAcross('Dragon',{len:13,T:7,y:-.5,z:-6,bob:.6,glow:'rgba(0,0,0,0)'})},snitchM(){snitchModel()},
   trophyInto(el){trophyInto(el).catch(e=>console.warn('cup',e))},dragonInto(el){dragonInto(el).catch(e=>console.warn('dragon',e))},
   clear(){for(const e of effects)e.update=()=>false;for(const d of pData)d.life=0;document.querySelectorAll('.frost,.spellflash').forEach(x=>x.remove())},
   mapInto(el){mapInto(el).catch(e=>console.warn('map',e))},

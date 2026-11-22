@@ -195,7 +195,6 @@ function wandCast(x,y,dir,done){
 function patronus(){
   if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
   ensure();
-  if(Math.random()<.3)return phoenixFire();
   const opts=PAT.filter(k=>k!==last);const k=opts[Math.random()*opts.length|0];last=k;const sp=SPECIES[k];
   const dir=Math.random()<.5,base=Math.min(W/700,H/420)*(sp.k==='bird'?1.1:1.2);
   const wx=dir?W*.08:W*.92,wy=H*.96;
