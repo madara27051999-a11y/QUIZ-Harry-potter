@@ -154,7 +154,7 @@ function batWing(len){
   return {g,inner,outer,mat:mem};
 }
 const GHOSTS={
-  lynx:{n:'Рысь (Кингсли Бруствер)',model:'Lion',o:{len:5.2,T:5.5,y:-2.2,z:-2,bob:.05,bobF:6,roll:0,ts:1.1}},
+  lynx:{n:'Рысь (Кингсли Бруствер)',model:'Lion',o:{sub:[0,38],strip:'ROOT',len:5.2,T:6,y:-2.2,z:-2,ts:1.9,bob:.03,bobF:6,roll:0}},
   eagleG:{n:'Орёл',model:'Eagle',o:{len:8,T:6,y:1.4,z:-2,bob:.5}},
 };
 const KINDS={
@@ -195,7 +195,7 @@ function creature(kindKey,from,opt={}){
     I.pivot.scale.setScalar(.08+.92*grow);
     const fade=k<.06?k/.06:k>.88?(1-k)/.12:1;mat.opacity=(K.fire?1:.9)*fade;if(extras.hm)extras.hm.opacity=fade;
     if(extras.horn){morphVertex(m,keys.ear,v);morphVertex(m,keys.nose,v2);v3.subVectors(v2,v).normalize();
-      extras.horn.position.copy(v).lerp(v2,.36);extras.horn.position.y-=7;const d=v3.clone().multiplyScalar(.8).add(UP.clone().multiplyScalar(1)).normalize();extras.horn.quaternion.setFromUnitVectors(UP,d)}
+      extras.horn.position.copy(v).lerp(v2,.2);extras.horn.position.y-=13;const d=v3.clone().multiplyScalar(.8).add(UP.clone().multiplyScalar(1)).normalize();extras.horn.quaternion.setFromUnitVectors(UP,d)}
     if(extras.ant){morphVertex(m,keys.ear,v);morphVertex(m,keys.nose,v2);v3.subVectors(v2,v);extras.ant.position.copy(v).lerp(v2,.12);extras.ant.position.y-=9;extras.ant.rotation.set(0,Math.atan2(v3.x,v3.z),0,'YXZ');extras.ant.rotateX(-.25);extras.am.opacity=fade*.95;extras.am.userData.u&&(extras.am.userData.u.uT.value=t)}
     if(extras.wings){morphVertex(m,keys.wither,v);const fl=Math.sin(t*(K.wings==='bat'?5:4.2));
       for(const w of extras.wings){w.g.position.copy(v);w.g.position.y-=K.wings==='bat'?14:10;w.g.position.x+=w.s*4;w.g.rotation.y=.3;w.update(t,.32,.62,K.wings==='bat'?4.6:3.8);w.mat.opacity=fade*(K.wings==='bat'?.9:1);w.mat.userData.u&&(w.mat.userData.u.uT.value=t)}}
@@ -519,13 +519,14 @@ async function mapInto(el){
 
 // ===== Модели из Sketchfab (авторы — в подписи на главном экране) =====
 const MODEL_CACHE={};
-function getModel(name){if(!MODEL_CACHE[name])MODEL_CACHE[name]=new Promise((res,rej)=>loader.load('models/'+name+'.glb?v=19',res,undefined,rej));return MODEL_CACHE[name]}
+function getModel(name){if(!MODEL_CACHE[name])MODEL_CACHE[name]=new Promise((res,rej)=>loader.load('models/'+name+'.glb?v=20',res,undefined,rej));return MODEL_CACHE[name]}
 function skinBox(root){root.updateMatrixWorld(true);const b=new THREE.Box3(),v=new THREE.Vector3();
   root.traverse(o=>{if(o.isSkinnedMesh){const p=o.geometry.attributes.position,st=Math.max(1,Math.floor(p.count/2500));for(let i=0;i<p.count;i+=st){v.fromBufferAttribute(p,i);o.applyBoneTransform(i,v);v.applyMatrix4(o.matrixWorld);b.expandByPoint(v)}}else if(o.isMesh)b.expandByObject(o)});return b}
 async function prep(name,len,opt={}){
   const g=await getModel(name);const root=SkeletonUtils.clone(g.scene);
   root.traverse(o=>{if(o.isMesh){o.frustumCulled=false;if(opt.mat)o.material=opt.mat;else if(o.material){const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>{m.transparent=true;m.depthWrite=true})}}});
-  const mixer=new THREE.AnimationMixer(root);const clips=g.animations;
+  const mixer=new THREE.AnimationMixer(root);let clips=g.animations;
+  if(opt.sub||opt.strip)clips=clips.map(c0=>{let c=c0.clone();if(opt.strip)c.tracks=c.tracks.filter(tr=>!(tr.name.includes(opt.strip)&&tr.name.endsWith('.position')));if(opt.sub)c=THREE.AnimationUtils.subclip(c,c.name,opt.sub[0],opt.sub[1],30);return c});
   const ci=opt.clip==null?0:(typeof opt.clip==='number'?opt.clip:clips.findIndex(c=>c.name.includes(opt.clip)));
   const act=clips[ci]?mixer.clipAction(clips[ci]):null;if(act){act.timeScale=opt.ts||1;act.play()}mixer.update(.001);
   const b=skinBox(root),sz=b.getSize(new THREE.Vector3()),c=b.getCenter(new THREE.Vector3());const s=len/Math.max(opt.byHeight?sz.y:Math.max(sz.x,sz.z),1e-6);
@@ -542,7 +543,7 @@ const V3=()=>new THREE.Vector3();
 // ---- пролёт существа через экран ----
 function flyAcross(name,o){
   let I=null,t=0;const T=o.T||6,dir=Math.random()<.5?1:-1,y0=o.y??1.2;const v=V3();setMode('screen',o.glow||'rgba(0,0,0,0)');
-  prep(name,o.len,{clip:o.clip,ts:o.ts,mat:o.mat}).then(x=>{I=x}).catch(e=>console.warn(name,e));
+  prep(name,o.len,{clip:o.clip,ts:o.ts,mat:o.mat,sub:o.sub,strip:o.strip}).then(x=>{I=x}).catch(e=>console.warn(name,e));
   return addEffect({update(dt){if(!I)return t<15;t+=dt;I.mixer.update(dt);
     const k=clamp(t/T,0,1),e=k;const x=-dir*(o.from||17)+dir*(o.from||17)*2*e;
     I.pivot.position.set(x,y0+Math.sin(t*(o.bobF||1.6))*(o.bob??.5),o.z??-2);I.pivot.rotation.set(o.pitch||0,dir>0?Math.PI/2:-Math.PI/2,Math.sin(t*1.6)*(o.roll??.06)*dir);
