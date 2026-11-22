@@ -163,9 +163,9 @@ function creature(kindKey,from,opt={}){
     I.pivot.scale.setScalar(.08+.92*grow);
     const fade=k<.06?k/.06:k>.88?(1-k)/.12:1;mat.opacity=(K.fire?1:.9)*fade;if(extras.hm)extras.hm.opacity=fade;
     if(extras.horn){morphVertex(m,keys.ear,v);morphVertex(m,keys.nose,v2);v3.subVectors(v2,v).normalize();
-      extras.horn.position.copy(v).lerp(v2,.3);extras.horn.position.y+=3;const d=v3.clone().multiplyScalar(1.5).add(UP.clone().multiplyScalar(.75)).normalize();extras.horn.quaternion.setFromUnitVectors(UP,d)}
+      extras.horn.position.copy(v).lerp(v2,.3);extras.horn.position.y+=3;const d=v3.clone().multiplyScalar(.8).add(UP.clone().multiplyScalar(1)).normalize();extras.horn.quaternion.setFromUnitVectors(UP,d)}
     if(extras.wings){morphVertex(m,keys.wither,v);const fl=Math.sin(t*(K.wings==='bat'?5:4.2));
-      for(const w of extras.wings){w.g.position.copy(v);w.g.position.y+=4;w.g.position.x+=w.s*6;w.g.rotation.y=.55;w.inner.rotation.set(0,0,.75+fl*.7);w.outer.rotation.set(0,0,.25+Math.sin(t*(K.wings==='bat'?5:4.2)-.7)*.6);w.mat.opacity=fade;w.mat.userData.u.uT.value=t}}
+      for(const w of extras.wings){w.g.position.copy(v);w.g.position.y-=K.wings==='bat'?14:10;w.g.position.x+=w.s*4;w.g.rotation.y=.35;w.inner.rotation.set(0,0,.45+fl*.6);w.outer.rotation.set(0,0,.25+Math.sin(t*(K.wings==='bat'?5:4.2)-.7)*.6);w.mat.opacity=fade;w.mat.userData.u.uT.value=t}}
     const n=K.fire?14:6;for(let i=0;i<n;i++){randomVertexWorld(I,v);
       if(K.fire)emit(v,new THREE.Vector3(-dir*rnd(.5,2),rnd(.5,2.4),rnd(-.5,.5)),Math.random()<.4?'#fff1b0':'#ff8a2a',rnd(.25,.6),rnd(.6,1.4),{c2:'#ff2a0a',g:.6});
       else emit(v,new THREE.Vector3(-dir*rnd(.3,1.4),rnd(-.2,.6),rnd(-.4,.4)),K.horn&&Math.random()<.25?'#ffe9a8':K.wings==='bat'?'#9ffff0':kindKey==='abraxan'?'#ffe7a8':'#cfefff',rnd(.12,.3),rnd(.8,1.8))}
@@ -486,7 +486,7 @@ async function mapInto(el){
 
 // ===== Модели из Sketchfab (авторы — в подписи на главном экране) =====
 const MODEL_CACHE={};
-function getModel(name){if(!MODEL_CACHE[name])MODEL_CACHE[name]=new Promise((res,rej)=>loader.load('models/'+name+'.glb?v=17',res,undefined,rej));return MODEL_CACHE[name]}
+function getModel(name){if(!MODEL_CACHE[name])MODEL_CACHE[name]=new Promise((res,rej)=>loader.load('models/'+name+'.glb?v=18',res,undefined,rej));return MODEL_CACHE[name]}
 function skinBox(root){root.updateMatrixWorld(true);const b=new THREE.Box3(),v=new THREE.Vector3();
   root.traverse(o=>{if(o.isSkinnedMesh){const p=o.geometry.attributes.position,st=Math.max(1,Math.floor(p.count/2500));for(let i=0;i<p.count;i+=st){v.fromBufferAttribute(p,i);o.applyBoneTransform(i,v);v.applyMatrix4(o.matrixWorld);b.expandByPoint(v)}}else if(o.isMesh)b.expandByObject(o)});return b}
 async function prep(name,len,opt={}){
@@ -660,7 +660,6 @@ const API={ready:false,
   transition(){if(!API.ready)return false;const r=Math.random();const N=(s)=>{if(typeof FX2!=='undefined')FX2.showName(s)};
     if(r<.14){N('Корнуэльские пикси');pixies();return true}
     if(r<.26){N('Феникс');flyAcross('Phoenix',{len:6,T:6.5,y:1.8,trail:10,fire:true,glow:'rgba(255,140,40,.8)'});return true}
-    if(r<.40){N('Хогвартс-экспресс');trainPass();return true}
     if(r<.50){N('Квиддич');quidditchChase();return true}
     if(r<.56){N('Золотой снитч');snitchModel();return true}
     if(r<.62&&typeof FX2!=='undefined'&&FX2.flyingKeys){FX2.flyingKeys();return true}
