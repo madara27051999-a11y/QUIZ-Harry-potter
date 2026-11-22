@@ -118,6 +118,23 @@ function tick(){
 function screenToWorld(x,y,z=0){const v=new THREE.Vector3(x/innerWidth*2-1,-(y/innerHeight)*2+1,.5).unproject(camera);const d=v.sub(camera.position).normalize();const t=(z-camera.position.z)/d.z;return camera.position.clone().addScaledVector(d,t)}
 
 // крылья из перьев (Абраксан, Пегас) и перепончатые (Фестрал)
+// гибкое крыло: сетка, которая изгибается волной от плеча к кончику
+function softWing(kind,len,col,rim){
+  const NS=30,NC=12,bat=kind==='bat';const geo=new THREE.BufferGeometry();const pos=new Float32Array((NS+1)*(NC+1)*3),uv=new Float32Array((NS+1)*(NC+1)*2),idx=[];
+  for(let i=0;i<=NS;i++)for(let j=0;j<=NC;j++){const k=i*(NC+1)+j;uv[k*2]=i/NS;uv[k*2+1]=j/NC;if(i<NS&&j<NC){const a=k,b=k+NC+1;idx.push(a,b,a+1,b,b+1,a+1)}}
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));geo.setAttribute('uv',new THREE.BufferAttribute(uv,2));geo.setIndex(idx);
+  const mat=bat?ghostMat('#0d1a20',{rim:'#a8fff0',core:.18,pow:1.4}):ghostMat(col,{rim,core:.45,pow:1.5});mat.side=THREE.DoubleSide;
+  const mesh=new THREE.Mesh(geo,mat);mesh.frustumCulled=false;const g=new THREE.Group();g.add(mesh);
+  const chord=s=>bat?len*(.46*Math.pow(1-s,.75)+.05)*(.72+.28*Math.abs(Math.cos(s*Math.PI*3.5))):len*(.34*(1-.45*s)+.06)*(.86+.14*(1-((s*11)%1)))*(s>.85?Math.sqrt(Math.max(.05,(1-s)/.15)):1);
+  const sp=[];for(let i=0;i<=NS;i++)sp.push(new THREE.Vector2());
+  function update(t,base,amp,w){let x=0,y=0;const ds=len/NS;
+    for(let i=0;i<=NS;i++){const s=i/NS;sp[i].set(x,y);const th=base*(.4+.75*s)+amp*Math.sin(w*t-s*1.6)*(.45+.9*s);x+=Math.cos(th)*ds;y+=Math.sin(th)*ds}
+    for(let i=0;i<=NS;i++){const s=i/NS,L=chord(s),zl=len*(.05-.16*s*s),n=i<NS?Math.atan2(sp[i+1].y-sp[i].y,sp[i+1].x-sp[i].x):Math.atan2(sp[i].y-sp[i-1].y,sp[i].x-sp[i-1].x);
+      for(let j=0;j<=NC;j++){const c=j/NC,k=(i*(NC+1)+j)*3,sag=-Math.sin(c*Math.PI)*L*(bat?.12:.06)*(1+.4*Math.sin(w*t-s*2))+(bat?0:-c*c*L*.08);
+        pos[k]=sp[i].x-Math.sin(n)*sag;pos[k+1]=sp[i].y+Math.cos(n)*sag;pos[k+2]=zl-c*L}}
+    geo.attributes.position.needsUpdate=true;geo.computeVertexNormals()}
+  update(0,.4,0,1);return {g,mat,update};
+}
 function featherWing(col,rim,len){
   const g=new THREE.Group(),inner=new THREE.Group(),outer=new THREE.Group();g.add(inner);inner.add(outer);outer.position.x=len*.45;
   const fs=new THREE.Shape();fs.moveTo(0,-.5);fs.quadraticCurveTo(.5,-.55,1,0);fs.quadraticCurveTo(.5,.55,0,.5);fs.lineTo(0,-.5);const fg=new THREE.ShapeGeometry(fs,8);
@@ -136,12 +153,17 @@ function batWing(len){
   [[0,.06,.43,.08],[.43,.08,1.03,.1],[.43,.08,.93,-.08],[.43,.08,.79,-.3],[.43,.08,.6,-.4]].forEach(([x1,z1,x2,z2],k)=>{const a=new THREE.Vector3(x1*L,0,z1*L),b=new THREE.Vector3(x2*L,0,z2*L);const c=new THREE.Mesh(new THREE.CylinderGeometry(.006*L,.004*L,a.distanceTo(b),6),bone);c.position.copy(a).lerp(b,.5);c.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),b.clone().sub(a).normalize());if(k===0)inner.add(c);else{c.position.x-=.42*L;outer.add(c)}});
   return {g,inner,outer,mat:mem};
 }
+const GHOSTS={
+  lynx:{n:'Рысь (Кингсли Бруствер)',model:'Lion',o:{len:5.2,T:5.5,y:-2.2,z:-2,bob:.05,bobF:6,roll:0,ts:1.1}},
+  eagleG:{n:'Орёл',model:'Eagle',o:{len:8,T:6,y:1.4,z:-2,bob:.5}},
+};
 const KINDS={
-  horse:{n:'Лошадь',model:'Horse',len:8.5,col:'#9fd8ff',rim:'#f2fbff',ts:1.1},
+  horse:{n:'Лошадь (Джинни Уизли)',model:'Horse',len:8.5,col:'#9fd8ff',rim:'#f2fbff',ts:1.1},
+  stag:{n:'Олень (Гарри Поттер)',model:'Horse',len:8.4,col:'#a8dcff',rim:'#f4fbff',ts:1.05,antlers:true},
   unicorn:{n:'Единорог',model:'Horse',len:8.2,col:'#eef4ff',rim:'#fff3c8',ts:1.05,horn:true},
   thestral:{n:'Фестрал',model:'Horse',len:8.6,col:'#16222e',rim:'#b8fff4',ts:.85,wings:'bat',core:.12,pow:1.1,fly:true},
   abraxan:{n:'Абраксанский крылатый конь',model:'Horse',len:9,col:'#ffd98a',rim:'#fff6dc',ts:.8,wings:'feather',fly:true},
-  fox:{n:'Лиса',model:'Fox',len:6.4,col:'#a8dcff',rim:'#f0fbff',clip:'Run',ts:1},
+  fox:{n:'Лис (Симус Финниган)',model:'Fox',len:6.4,col:'#a8dcff',rim:'#f0fbff',clip:'Run',ts:1},
   phoenix:{n:'Феникс',model:'Parrot',len:7.5,fire:true,ts:.8,bird:true},
 };
 let lastKind='';
@@ -154,7 +176,17 @@ function creature(kindKey,from,opt={}){
   if(K.horn){const hm=ghostMat('#ffe7a0',{rim:'#ffffff',core:.9,pow:1.2});const hg=new THREE.ConeGeometry(.07,1,24,1);hg.translate(0,.5,0);
     const pos=hg.attributes.position;for(let i=0;i<pos.count;i++){const y=pos.getY(i),a=Math.atan2(pos.getZ(i),pos.getX(i));const r=Math.hypot(pos.getX(i),pos.getZ(i))*(1+.25*Math.sin(a*2+y*40));pos.setX(i,Math.cos(a)*r);pos.setZ(i,Math.sin(a)*r)}hg.computeVertexNormals();
     extras.horn=new THREE.Mesh(hg,hm);extras.horn.scale.setScalar(.85/I.scale);m.add(extras.horn);extras.hm=hm}
-  if(K.wings){for(const s of[1,-1]){const w=K.wings==='bat'?batWing(190):featherWing(K.col,K.rim,190);w.g.scale.set(s,1,1);m.add(w.g);(extras.wings=extras.wings||[]).push({...w,s})}}
+  if(K.antlers){const am=ghostMat(K.col,{rim:'#ffffff',core:.6,pow:1.2});const ag=new THREE.Group();
+    const tube=(pts,r0,r1)=>{const cu=new THREE.CatmullRomCurve3(pts.map(p=>new THREE.Vector3(...p)));const g=new THREE.TubeGeometry(cu,24,1,8,false);const P=g.attributes.position,n=g.attributes.normal;
+      // сужение к кончику
+      for(let i=0;i<P.count;i++){const seg=Math.floor(i/9)/24,c=cu.getPointAt(Math.min(1,seg));const r=r0+(r1-r0)*seg;P.setXYZ(i,c.x+(P.getX(i)-c.x)*r,c.y+(P.getY(i)-c.y)*r,c.z+(P.getZ(i)-c.z)*r)}g.computeVertexNormals();
+      const tip=new THREE.SphereGeometry(r1,8,6);tip.translate(...pts[pts.length-1]);return [g,tip]};
+    for(const s of[1,-1]){const beam=[[s*.06,0,0],[s*.32,.45,-.12],[s*.55,.95,-.22],[s*.66,1.45,-.12],[s*.62,1.9,.08]];
+      const parts=[...tube(beam,.085,.03),...tube([[s*.2,.25,-.05],[s*.26,.45,.22],[s*.3,.62,.4]],.05,.02),...tube([[s*.5,.8,-.2],[s*.52,1.05,.08],[s*.5,1.25,.25]],.045,.02),...tube([[s*.64,1.35,-.14],[s*.8,1.65,-.18],[s*.9,1.9,-.1]],.04,.018)];
+      for(const g of parts){const me=new THREE.Mesh(g,am);me.frustumCulled=false;ag.add(me)}
+      const base=new THREE.SphereGeometry(.1,10,8);base.translate(s*.06,0,0);ag.add(new THREE.Mesh(base,am))}
+    ag.scale.setScalar(.8/I.scale);m.add(ag);extras.ant=ag;extras.am=am}
+  if(K.wings){for(const s of[1,-1]){const w=softWing(K.wings,200,K.col,K.rim);w.g.scale.set(s,1,1);m.add(w.g);(extras.wings=extras.wings||[]).push({...w,s})}}
   const T=opt.speedT||(K.fly?6:5.2);let t=0;
   return addEffect({update(dt){t+=dt;I.mixer.update(dt*(K.fly?.85:1));mat.userData.u&&(mat.userData.u.uT.value=t);if(mat.userData.sh)mat.userData.sh.uniforms.uT.value=t;
     const k=clamp(t/T,0,1),grow=easeO(clamp(t/.9,0,1));
@@ -163,9 +195,10 @@ function creature(kindKey,from,opt={}){
     I.pivot.scale.setScalar(.08+.92*grow);
     const fade=k<.06?k/.06:k>.88?(1-k)/.12:1;mat.opacity=(K.fire?1:.9)*fade;if(extras.hm)extras.hm.opacity=fade;
     if(extras.horn){morphVertex(m,keys.ear,v);morphVertex(m,keys.nose,v2);v3.subVectors(v2,v).normalize();
-      extras.horn.position.copy(v).lerp(v2,.3);extras.horn.position.y+=3;const d=v3.clone().multiplyScalar(.8).add(UP.clone().multiplyScalar(1)).normalize();extras.horn.quaternion.setFromUnitVectors(UP,d)}
+      extras.horn.position.copy(v).lerp(v2,.36);extras.horn.position.y-=7;const d=v3.clone().multiplyScalar(.8).add(UP.clone().multiplyScalar(1)).normalize();extras.horn.quaternion.setFromUnitVectors(UP,d)}
+    if(extras.ant){morphVertex(m,keys.ear,v);morphVertex(m,keys.nose,v2);v3.subVectors(v2,v);extras.ant.position.copy(v).lerp(v2,.12);extras.ant.position.y-=9;extras.ant.rotation.set(0,Math.atan2(v3.x,v3.z),0,'YXZ');extras.ant.rotateX(-.25);extras.am.opacity=fade*.95;extras.am.userData.u&&(extras.am.userData.u.uT.value=t)}
     if(extras.wings){morphVertex(m,keys.wither,v);const fl=Math.sin(t*(K.wings==='bat'?5:4.2));
-      for(const w of extras.wings){w.g.position.copy(v);w.g.position.y-=K.wings==='bat'?14:10;w.g.position.x+=w.s*4;w.g.rotation.y=.35;w.inner.rotation.set(0,0,.45+fl*.6);w.outer.rotation.set(0,0,.25+Math.sin(t*(K.wings==='bat'?5:4.2)-.7)*.6);w.mat.opacity=fade;w.mat.userData.u.uT.value=t}}
+      for(const w of extras.wings){w.g.position.copy(v);w.g.position.y-=K.wings==='bat'?14:10;w.g.position.x+=w.s*4;w.g.rotation.y=.3;w.update(t,.32,.62,K.wings==='bat'?4.6:3.8);w.mat.opacity=fade*(K.wings==='bat'?.9:1);w.mat.userData.u&&(w.mat.userData.u.uT.value=t)}}
     const n=K.fire?14:6;for(let i=0;i<n;i++){randomVertexWorld(I,v);
       if(K.fire)emit(v,new THREE.Vector3(-dir*rnd(.5,2),rnd(.5,2.4),rnd(-.5,.5)),Math.random()<.4?'#fff1b0':'#ff8a2a',rnd(.25,.6),rnd(.6,1.4),{c2:'#ff2a0a',g:.6});
       else emit(v,new THREE.Vector3(-dir*rnd(.3,1.4),rnd(-.2,.6),rnd(-.4,.4)),K.horn&&Math.random()<.25?'#ffe9a8':K.wings==='bat'?'#9ffff0':kindKey==='abraxan'?'#ffe7a8':'#cfefff',rnd(.12,.3),rnd(.8,1.8))}
@@ -486,7 +519,7 @@ async function mapInto(el){
 
 // ===== Модели из Sketchfab (авторы — в подписи на главном экране) =====
 const MODEL_CACHE={};
-function getModel(name){if(!MODEL_CACHE[name])MODEL_CACHE[name]=new Promise((res,rej)=>loader.load('models/'+name+'.glb?v=18',res,undefined,rej));return MODEL_CACHE[name]}
+function getModel(name){if(!MODEL_CACHE[name])MODEL_CACHE[name]=new Promise((res,rej)=>loader.load('models/'+name+'.glb?v=19',res,undefined,rej));return MODEL_CACHE[name]}
 function skinBox(root){root.updateMatrixWorld(true);const b=new THREE.Box3(),v=new THREE.Vector3();
   root.traverse(o=>{if(o.isSkinnedMesh){const p=o.geometry.attributes.position,st=Math.max(1,Math.floor(p.count/2500));for(let i=0;i<p.count;i+=st){v.fromBufferAttribute(p,i);o.applyBoneTransform(i,v);v.applyMatrix4(o.matrixWorld);b.expandByPoint(v)}}else if(o.isMesh)b.expandByObject(o)});return b}
 async function prep(name,len,opt={}){
@@ -509,11 +542,11 @@ const V3=()=>new THREE.Vector3();
 // ---- пролёт существа через экран ----
 function flyAcross(name,o){
   let I=null,t=0;const T=o.T||6,dir=Math.random()<.5?1:-1,y0=o.y??1.2;const v=V3();setMode('screen',o.glow||'rgba(0,0,0,0)');
-  prep(name,o.len,{clip:o.clip,ts:o.ts}).then(x=>{I=x}).catch(e=>console.warn(name,e));
+  prep(name,o.len,{clip:o.clip,ts:o.ts,mat:o.mat}).then(x=>{I=x}).catch(e=>console.warn(name,e));
   return addEffect({update(dt){if(!I)return t<15;t+=dt;I.mixer.update(dt);
     const k=clamp(t/T,0,1),e=k;const x=-dir*(o.from||17)+dir*(o.from||17)*2*e;
     I.pivot.position.set(x,y0+Math.sin(t*(o.bobF||1.6))*(o.bob??.5),o.z??-2);I.pivot.rotation.set(o.pitch||0,dir>0?Math.PI/2:-Math.PI/2,Math.sin(t*1.6)*(o.roll??.06)*dir);
-    I.fade(Math.min(1,k/.06,(1-k)/.08));
+    I.fade(Math.min(1,k/.06,(1-k)/.08)*(o.op||1));if(o.mat&&o.mat.userData.u)o.mat.userData.u.uT.value=t;
     if(o.trail)for(let i=0;i<o.trail;i++){I.sample(v);o.fire?emit(v,new THREE.Vector3(-dir*rnd(.5,2),rnd(.4,2.2),rnd(-.5,.5)),Math.random()<.4?'#fff1b0':'#ff8a2a',rnd(.25,.6),rnd(.5,1.2),{c2:'#ff2a0a',g:.6}):emit(v,new THREE.Vector3(-dir*rnd(.2,1),rnd(-.2,.4),rnd(-.3,.3)),o.spark||'#cfefff',rnd(.1,.25),rnd(.5,1.2))}
     return t<T},dispose(){I&&I.dispose()}});
 }
@@ -652,19 +685,25 @@ function spiders(){const P=[];let t=0;const T=5.5,dir=Math.random()<.5?1:-1;setM
 }
 
 const API={ready:false,
-  patronus(){if(!API.ready)return false;const keys=Object.keys(KINDS).filter(k=>k!==lastKind);const k=keys[Math.random()*keys.length|0];lastKind=k;const K=KINDS[k];
+  patronus(){if(!API.ready)return false;const keys=[...Object.keys(KINDS).filter(k=>k!=='phoenix'),...Object.keys(GHOSTS)].filter(k=>k!==lastKind);const k=keys[Math.random()*keys.length|0];lastKind=k;if(GHOSTS[k]){const G=GHOSTS[k];const dir=Math.random()<.5,wx=dir?innerWidth*.08:innerWidth*.92,wy=innerHeight*.96;
+      if(typeof FX2!=='undefined'&&FX2.wandCast){FX2.showName('Экспекто патронум!');FX2.wandCast(wx,wy,dir,(tx,ty)=>{FX2.showName('Патронус: '+G.n);vortex(tx,ty,'#cfefff');flyAcross(G.model,{...G.o,mat:ghostMat(G.col||'#a8dcff',{rim:'#f4fbff',core:.5,pow:1.3}),trail:5,spark:'#cfefff',glow:'rgba(150,210,255,.95)',op:.9})})}else flyAcross(G.model,{...G.o,mat:ghostMat('#a8dcff',{rim:'#f4fbff',core:.5,pow:1.3}),trail:5});return true}
+    const K=KINDS[k];
     const dir=Math.random()<.5,wx=dir?innerWidth*.08:innerWidth*.92,wy=innerHeight*.96;
     if(typeof FX2!=='undefined'&&FX2.wandCast){FX2.showName(K.fire?'Феникс':'Экспекто патронум!');FX2.wandCast(wx,wy,dir,(tx,ty)=>{FX2.showName(K.fire?'Феникс':'Патронус: '+K.n);vortex(tx,ty,K.fire?'#ffb040':'#cfefff');creature(k,{x:tx,y:ty})})}
     else creature(k,{x:wx,y:innerHeight*.6});
     return true},
-  transition(){if(!API.ready)return false;const r=Math.random();const N=(s)=>{if(typeof FX2!=='undefined')FX2.showName(s)};
-    if(r<.14){N('Корнуэльские пикси');pixies();return true}
-    if(r<.26){N('Феникс');flyAcross('Phoenix',{len:6,T:6.5,y:1.8,trail:10,fire:true,glow:'rgba(255,140,40,.8)'});return true}
-    if(r<.50){N('Квиддич');quidditchChase();return true}
-    if(r<.56){N('Золотой снитч');snitchModel();return true}
-    if(r<.62&&typeof FX2!=='undefined'&&FX2.flyingKeys){FX2.flyingKeys();return true}
-    if(r<.74&&typeof FX2!=='undefined'&&FX2.castSpell){const ks=['avada','expelliarmus','incendio','leviosa','protego'];FX2.castSpell(ks[Math.random()*ks.length|0]);return true}
+  transition(){if(!API.ready)return false;const N=(s)=>{if(typeof FX2!=='undefined')FX2.showName(s)};const has2=typeof FX2!=='undefined';
+    const pool=[['pixies',14],['phoenix',12],['chase',5],['snitch',8],['keys',has2?8:0],['spell',has2?16:0],['patronus',37]];
+    let pick='patronus';for(let tries=0;tries<8;tries++){let r=Math.random()*pool.reduce((a,b)=>a+b[1],0);for(const [k,w] of pool){if((r-=w)<0){pick=k;break}}if(pick!==API.lastT)break}
+    if(pick==='spell'){const ks=['avada','expelliarmus','incendio','leviosa'].filter(k=>k!==API.lastSpell);const s=ks[Math.random()*ks.length|0];API.lastSpell=s;if(API.lastT==='spell'&&API.lastSpell===s)pick='patronus';else{API.lastT='spell';FX2.castSpell(s);return true}}
+    API.lastT=pick;
+    if(pick==='pixies'){N('Корнуэльские пикси');pixies();return true}
+    if(pick==='phoenix'){N('Феникс');flyAcross('Phoenix',{len:6,T:6.5,y:1.8,trail:10,fire:true,glow:'rgba(255,140,40,.8)'});return true}
+    if(pick==='chase'){N('Квиддич');quidditchChase();return true}
+    if(pick==='snitch'){N('Золотой снитч');snitchModel();return true}
+    if(pick==='keys'){FX2.flyingKeys();return true}
     return API.patronus()},
+  ghost(k){const G=GHOSTS[k];flyAcross(G.model,{...G.o,mat:ghostMat(G.col||'#a8dcff',{rim:'#f4fbff',core:.5,pow:1.3}),trail:5,spark:'#cfefff',glow:'rgba(150,210,255,.95)',op:.9})},
   pixies(){pixies()},train(){trainPass()},chase(){quidditchChase()},spiders(){spiders()},phoenix(){flyAcross('Phoenix',{len:6,T:6.5,y:1.8,trail:10,fire:true,glow:'rgba(255,140,40,.8)'})},iceDragon(){flyAcross('IceDragon',{len:15,T:7,y:0,z:-6,bob:.8,bobF:1,trail:3,spark:'#bfe6ff',glow:'rgba(150,200,255,.35)'})},dragon(){flyAcross('Dragon',{len:13,T:7,y:-.5,z:-6,bob:.6,glow:'rgba(0,0,0,0)'})},snitchM(){snitchModel()},
   trophyInto(el){trophyInto(el).catch(e=>console.warn('cup',e))},dragonInto(el){dragonInto(el).catch(e=>console.warn('dragon',e))},
   clear(){for(const e of effects)e.update=()=>false;for(const d of pData)d.life=0;document.querySelectorAll('.frost,.spellflash').forEach(x=>x.remove())},
